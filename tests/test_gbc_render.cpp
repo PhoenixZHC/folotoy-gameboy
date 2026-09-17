@@ -11,6 +11,8 @@ int main() {
     assert(core.vram && core.vram1_ && core.colorFramebuf_);
     core.isCgb_ = true;
     core.lcdc_ = 0x91;
+    core.scx_ = 0;
+    core.scy_ = 0;
     core.vram[0x1800] = 1;
     core.vram1_[0x1800] = 0x0a; // tile bank 1, palette 2
     core.vram1_[16] = 0x80; // first pixel has color index 1
