@@ -1,0 +1,100 @@
+<p align="right">
+  <strong>简体中文</strong> · <a href="build-and-test.md">English</a>
+</p>
+
+# 构建与验证（Build & Test）
+
+使用 ESP-IDF 5.5.3。全新机器或缺少工具链时，先按
+[环境引导](environment-setup.zh_CN.md)完成安装。
+
+> **向设备下载（烧录）新固件前，无需备份设备内部原有固件。** 不要求先读出
+> 原固件，也不把原固件备份作为烧录前置条件。烧录会覆盖原固件，不会自动恢复
+> 原固件。这不代表用户数据会被保留：如果需要保留已有设置或记录，应事先
+> 导出或另行保存。详见[烧录与已存数据](firmware-layout.zh_CN.md#烧录与已存数据)。
+
+> 固件编译优先运行 `./tools/validate.sh --firmware`。本 Game Boy 检出目录会生成 `build/FoloToy-GameBoy-8MB-clean.bin`，仅用于从 `0x0` 首次安装；它会清空游戏、存档、设置和手柄绑定。布局兼容的已有设备只应在 `0x10000` 更新应用镜像。详见[游戏镜像说明](../release/gameboy-firmware.zh_CN.md)。`idf.py build` 和 `idf.py flash` 只作为增量开发命令，不作为默认交付方式。
+
+```bash
+source <ESP-IDF-v5.5.3-路径>/export.sh
+idf.py --version             # 必须输出 ESP-IDF v5.5.3
+./tools/validate.sh --firmware # 优先：编译并验证 0x0 合并固件
+idf.py set-target esp32c3     # 配置目标芯片（fresh checkout 后/换 target 后运行）
+idf.py build                  # 可选：增量 app 编译
+idf.py flash monitor          # 可选：增量 app 烧录
+idf.py fullclean              # 只清空过期生成状态（勿用于清理用户源码改动）
+```
+
+`idf.py fullclean` 不能让已有 `sdkconfig` 完整同步变更后的 defaults。需要重建
+target 或已跟踪 defaults 时，先保留有意的本地设置，再运行
+`idf.py set-target esp32c3`。
+
+### 加速重复编译
+
+ccache 能在源码需要重新编译时复用已有编译结果。ESP-IDF 5.5.3 默认不启用
+ccache。激活 ESP-IDF 后，先确认 ccache 可用，再为单次构建启用（以下命令
+同样适用于 Linux/macOS shell 和 Windows 原生 ESP-IDF 终端）：
+
+```text
+ccache --version
+idf.py --ccache build
+```
+
+也可以在当前 Linux/macOS shell 及其子进程中启用，让验证脚本一并使用：
+
+```bash
+export IDF_CCACHE_ENABLE=1
+idf.py build
+```
+
+这是 `idf.py` 选项，不是 `sdkconfig` 或 `menuconfig` 配置。需要在项目或 CI
+中重复启用时，显式传入 `--ccache`，或在该构建环境设置
+`IDF_CCACHE_ENABLE=1`；不要擅自修改 shell 启动文件。参见
+[ESP-IDF 5.5.3 选项定义](https://github.com/espressif/esp-idf/blob/v5.5.3/tools/idf_py_actions/core_ext.py)。
+
+先检查当前缓存配置，不要假定固定路径：
+
+```text
+ccache --show-config
+ccache --show-stats
+```
+
+实际 `cache_dir` 取决于 ccache 版本、平台、配置以及 `CCACHE_DIR`，并不总是
+`~/.ccache`。把它放在 `build/` 和临时验证目录之外，清理这些目录时才能保留
+缓存。清缓存不是日常构建步骤。只有明确需要清空当前缓存时，才使用保留
+配置文件的 `ccache --clear`，而不是删除整个目录；这也会清除共用该缓存的
+其他项目的编译结果。参见 [ccache 手册](https://ccache.dev/manual/latest.html)。
+
+Windows 上的杀毒或终端安全软件实时扫描可能拖慢构建，但应先诊断瓶颈。
+Microsoft Defender 可使用其
+[性能分析器](https://learn.microsoft.com/en-us/defender-endpoint/performance-analyzer-reference)，
+分析结果不等于自动建议添加排除项。排除项会降低防护能力，且属于可选措施：
+必须按适用安全策略取得用户或管理员批准，再把例外限制在已确认问题的最小
+范围内。不要例行排除整个 ESP-IDF 安装目录、工具链目录或工程，也不要关闭
+实时防护。
+
+仓库提交 `dependencies.lock` 以固定 ESP-IDF Managed Components 的解析结果。修改 `idf_component.yml` 后必须使用 ESP-IDF 5.5.3 重新生成锁文件、review 版本变化并与 manifest 一起提交；普通构建不应产生未提交的锁文件差异。
+
+固件门禁使用全新的临时构建目录，并从仓库 `sdkconfig.defaults` 生成隔离的 `sdkconfig`。它不会读取或覆盖开发者根目录的 `sdkconfig`，把验证通过的合并镜像复制到 `build/FoloToy-AI-Passport-full.bin`，并在 `build/` 中生成 Game Boy 清洁版 8 MiB 镜像及校验文件。门禁同时验证[当前配置的固件布局](firmware-layout.zh_CN.md)：从 `flash_args` 读取镜像偏移，检查分区表 MD5、边界和不重叠，并确认应用从所配置的 app 分区起点开始且未超出分区。允许用户自定义分区布局。
+
+当前基线含一个可独立运行的纯逻辑测试：
+
+```bash
+cc -std=c11 -Wall -Wextra -Werror -Imain \
+  tests/test_ui_pixel_math.c main/ui_pixel_math.c \
+  -o /tmp/test_ui_pixel_math
+/tmp/test_ui_pixel_math
+```
+
+统一验证入口：
+
+```bash
+./tools/validate.sh --static    # 仓库一致性、workflow、文档链接、敏感信息、host tests
+./tools/validate.sh --firmware  # ESP-IDF build、merge-bin、偏移与当前布局校验
+./tools/validate.sh             # 完整验证
+```
+
+完整验证要求预先激活 ESP-IDF 5.5.3。CI 与本地使用同一脚本；若 CI 和本地行为不同，应先修复脚本或环境，而不是维护两份命令。
+
+涉及物理外设的改动必须在真机运行硬件指南验收清单，并把“编译通过”与“硬件验证通过”分开记录。
+
+不要把应用单镜像 `build/FoloToy-AI-Passport.bin` 当作首次安装镜像。当前 Game Boy 项目的 GitHub Release 上传经校验的清洁版 8 MiB 镜像及校验文件；较短的合并文件不是整片 Flash 镜像。社区发布另有要求，不能从 GitHub 工作流直接推断。

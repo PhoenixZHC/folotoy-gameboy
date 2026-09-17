@@ -1,0 +1,17 @@
+build/
+artifacts/baselines/
+artifacts/releases/
+sdkconfig
+sdkconfig.old
+managed_components/
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+output/
+*.gb
+*.gbc
+*.gba
+*.sav
+*.srm

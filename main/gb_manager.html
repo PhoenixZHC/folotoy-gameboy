@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f380f">
+  <title>游戏管理 · FoloToy-GB</title>
+  <style>
+    :root{color-scheme:light;font-family:ui-monospace,"Cascadia Mono","Microsoft YaHei",sans-serif;background:#d5d1c3;color:#0f380f}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:#d5d1c3}
+    .shell{max-width:640px;margin:24px auto;padding:22px 18px 32px;border:8px solid #878b83;background:#9bbc0f;box-shadow:8px 8px 0 #51584e}
+    header{display:flex;align-items:center;gap:17px;margin:4px 0 25px;padding:0 0 16px;border-bottom:4px solid #0f380f}
+    .console{position:relative;flex:none;width:48px;height:58px;border:4px solid #0f380f;box-shadow:4px 4px 0 #306230}
+    .console:before{content:"";position:absolute;left:6px;top:6px;width:27px;height:19px;border:3px solid #0f380f}
+    .console:after{content:"+  ·";position:absolute;left:6px;bottom:2px;color:#0f380f;font-size:19px;font-weight:900;letter-spacing:2px}
+    h1{margin:0;font-size:28px;line-height:1.15;letter-spacing:.04em}
+    .address{margin:8px 0 0;color:#0f380f;font-size:13px;letter-spacing:.04em}
+    section{border:3px solid #0f380f;background:#8bac0f;padding:18px;margin:14px 0;box-shadow:4px 4px 0 #306230}
+    .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:19px}
+    h2{margin:0;font-size:18px;letter-spacing:.03em}
+    .muted{color:#0f380f;font-size:13px}
+    .metric{font-weight:700;color:#0f380f;white-space:nowrap;font-size:14px}
+    .track{height:14px;border:2px solid #0f380f;background:#9bbc0f;overflow:hidden}
+    .fill{height:100%;width:0;background:#0f380f;transition:width .35s}
+    .space-foot{display:flex;justify-content:space-between;gap:12px;margin-top:12px}
+    .games{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+    .game{display:flex;align-items:center;gap:12px;min-height:66px;padding:10px 11px;border:2px solid #306230;background:#9bbc0f}
+    .cart{flex:none;width:30px;height:34px;border:3px solid #0f380f;position:relative}
+    .cart:after{content:"";position:absolute;left:5px;top:7px;width:13px;height:8px;border-top:2px solid #0f380f;border-bottom:2px solid #0f380f}
+    .game-info{min-width:0;flex:1}
+    .game-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:650}
+    .game-size{display:block;margin-top:4px;color:#0f380f;font-size:12px}
+    .actions{display:flex;gap:6px;flex:none}
+    button,input{font:inherit}
+    button{cursor:pointer}
+    .delete,.rename{flex:none;min-height:38px;padding:0 9px;border:2px solid #0f380f;color:#0f380f;background:#9bbc0f;font-size:13px;font-weight:700}
+    .rename{border-color:#306230}
+    .rename:hover,.rename:focus-visible,.delete:hover,.delete:focus-visible{background:#0f380f;color:#9bbc0f}
+    .empty{padding:19px;border:2px dashed #306230;color:#306230;text-align:center;font-size:14px}
+    .picker{display:block;padding:16px;border:2px dashed #306230;background:#9bbc0f}
+    .picker span{display:block;margin-bottom:10px;font-size:14px;font-weight:700}
+    input[type=file]{display:block;width:100%;color:#0f380f;font-size:13px}
+    input[type=file]::file-selector-button{border:2px solid #0f380f;background:#9bbc0f;color:#0f380f;padding:8px 10px;margin-right:10px}
+    .name-label{display:block;margin:15px 0 7px;font-size:14px;font-weight:700}
+    .name-input{display:block;width:100%;min-height:43px;padding:0 12px;border:2px solid #306230;background:#9bbc0f;color:#0f380f}
+    .name-input:focus{outline:3px solid #0f380f;outline-offset:2px}
+    .note{margin:12px 0 17px;color:#0f380f;font-size:12px;line-height:1.5}
+    .primary{width:100%;min-height:48px;border:2px solid #0f380f;background:#0f380f;color:#9bbc0f;font-weight:800;font-size:16px}
+    .primary:disabled,.delete:disabled{opacity:.5;cursor:wait}
+    .primary:hover:not(:disabled),.primary:focus-visible:not(:disabled){background:#306230}
+    .status{min-height:22px;margin:13px 0 0;font-size:13px;color:#0f380f}
+    .status.error{color:#0f380f;font-weight:700}.status.success{color:#0f380f}
+    footer{margin:26px 0 0;text-align:center;color:#0f380f;font-size:12px}
+    @media(max-width:360px){.shell{margin:0;padding:18px 10px 28px;border-width:5px}section{padding:12px}h1{font-size:24px}.metric{font-size:12px}.game{gap:7px}.actions{gap:4px}.delete,.rename{padding:0 6px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header><div class="console" aria-hidden="true"></div><div><h1>游戏管理</h1><p class="address">FoloToy-GB · 192.168.4.1</p></div></header>
+    <section aria-labelledby="storage-title">
+      <div class="section-head"><h2 id="storage-title">存储空间</h2><span id="capacity" class="metric">读取中…</span></div>
+      <div class="track" role="progressbar" aria-label="存储空间已使用" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="fill" class="fill"></div></div>
+      <div class="space-foot"><span id="used" class="muted">已使用 —</span><span id="free" class="muted">剩余 —</span></div>
+    </section>
+    <section aria-labelledby="games-title">
+      <div class="section-head"><h2 id="games-title">已安装游戏</h2><span id="count" class="muted">—</span></div>
+      <ul id="games" class="games"></ul>
+    </section>
+    <section aria-labelledby="upload-title">
+      <div class="section-head"><h2 id="upload-title">上传游戏</h2></div>
+      <label class="picker" for="file"><span>选择 GB 游戏文件</span><input id="file" type="file" accept=".gb"></label>
+      <label class="name-label" for="name">设备上显示的游戏名</label>
+      <input id="name" class="name-input" type="text" autocomplete="off" placeholder="选择文件后自动填写">
+      <p class="note">支持中文名，最多 31 字节（约 10 个汉字）。仅支持 .gb，游戏合计不超过 3 MiB。</p>
+      <button id="upload" class="primary" type="button">上传 GB 游戏</button>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+    <footer>离开设备上的游戏管理页面后，Wi-Fi 会自动关闭。</footer>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const mib = bytes => (bytes / 1048576).toFixed(2) + ' MiB';
+    const nameBytes = value => new TextEncoder().encode(value).length;
+    function shortName(value) { let result = ''; for (const char of value) { if (nameBytes(result + char) > 31) break; result += char; } return result; }
+    function message(text, kind = '') { $('status').textContent = text; $('status').className = 'status ' + kind; }
+    $('file').onchange = () => {
+      const file = $('file').files[0];
+      if (!file) return;
+      const stem = file.name.replace(/\.gb$/i, '').split(/[（(]/)[0].trim();
+      $('name').value = shortName(stem || file.name.replace(/\.gb$/i, ''));
+    };
+    async function refresh() {
+      try {
+        const response = await fetch('/api/games', {cache:'no-store'});
+        if (!response.ok) throw new Error('读取失败');
+        const data = await response.json();
+        const percent = data.capacity ? Math.min(100, Math.round(data.used * 100 / data.capacity)) : 0;
+        $('capacity').textContent = mib(data.used) + ' / ' + mib(data.capacity);
+        $('used').textContent = '已使用 ' + percent + '%';
+        $('free').textContent = '剩余 ' + mib(Math.max(0, data.capacity - data.used));
+        $('fill').style.width = percent + '%';
+        document.querySelector('.track').setAttribute('aria-valuenow', String(percent));
+        $('count').textContent = '共 ' + data.games.length + ' 款';
+        const list = $('games');
+        list.replaceChildren();
+        if (!data.games.length) { const empty = document.createElement('li'); empty.className = 'empty'; empty.textContent = '还没有游戏，可以在下方上传 .gb 文件'; list.append(empty); }
+        data.games.forEach((game, index) => {
+          const row = document.createElement('li'); row.className = 'game';
+          const icon = document.createElement('span'); icon.className = 'cart'; icon.setAttribute('aria-hidden','true');
+          const info = document.createElement('span'); info.className = 'game-info';
+          const name = document.createElement('span'); name.className = 'game-name'; name.textContent = game.name;
+          const size = document.createElement('span'); size.className = 'game-size'; size.textContent = mib(game.size);
+          info.append(name,size);
+          const remove = document.createElement('button'); remove.className = 'delete'; remove.type = 'button'; remove.textContent = '删除';
+          remove.setAttribute('aria-label','删除 ' + game.name);
+          const rename = document.createElement('button'); rename.className = 'rename'; rename.type = 'button'; rename.textContent = '改名';
+          rename.setAttribute('aria-label','修改 ' + game.name + ' 的名称');
+          rename.onclick = async () => {
+            const next = prompt('输入新的游戏名（最多 31 字节，约 10 个汉字）', game.name);
+            if (next === null) return;
+            const value = next.trim();
+            if (!value || nameBytes(value) > 31) return message('名称需在 31 字节以内，约 10 个汉字', 'error');
+            rename.disabled = true;
+            try { const result = await fetch('/rename?id=' + index + '&name=' + encodeURIComponent(value), {method:'POST'}); const text = await result.text(); message(text, result.ok ? 'success' : 'error'); await refresh(); }
+            catch (error) { message('改名失败：连接已中断', 'error'); rename.disabled = false; }
+          };
+          remove.onclick = async () => {
+            if (!confirm('删除“' + game.name + '”及对应存档？此操作无法撤销。')) return;
+            remove.disabled = true;
+            try { const result = await fetch('/delete?id=' + index, {method:'POST'}); const text = await result.text(); message(text, result.ok ? 'success' : 'error'); await refresh(); }
+            catch (error) { message('删除失败：连接已中断', 'error'); remove.disabled = false; }
+          };
+          const actions = document.createElement('span'); actions.className = 'actions'; actions.append(rename,remove);
+          row.append(icon,info,actions); list.append(row);
+        });
+      } catch (error) { message('无法读取游戏列表，请确认设备仍停留在游戏管理页面。', 'error'); }
+    }
+    $('upload').onclick = async () => {
+      const file = $('file').files[0];
+      if (!file) return message('请先选择 .gb 文件', 'error');
+      if (!/\.gb$/i.test(file.name)) return message('仅支持 .gb 文件', 'error');
+      if (file.size < 32768 || file.size > 3145728) return message('文件需在 32 KiB 至 3 MiB 之间', 'error');
+      const name = $('name').value.trim();
+      if (!name || nameBytes(name) > 31) return message('名称需在 31 字节以内，约 10 个汉字', 'error');
+      const button = $('upload'); button.disabled = true; message('正在上传，请保持连接…');
+      try { const response = await fetch('/upload?name=' + encodeURIComponent(name), {method:'POST',body:file}); const text = await response.text(); message(text, response.ok ? 'success' : 'error'); if (response.ok) { $('file').value = ''; $('name').value = ''; await refresh(); } }
+      catch (error) { message('上传中断，请检查 Wi-Fi 连接', 'error'); }
+      finally { button.disabled = false; }
+    };
+    refresh();
+  </script>
+</body>
+</html>
