@@ -134,6 +134,8 @@ def main() -> int:
                 temporary = Path(stream.name)
                 stream.write(image)
             try:
+                # CI 在容器内生成镜像，宿主机仍需能读取它以上传构建产物。
+                temporary.chmod(0o644)
                 temporary.replace(output)
             finally:
                 temporary.unlink(missing_ok=True)
