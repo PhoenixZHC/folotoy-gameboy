@@ -42,7 +42,7 @@ The unchanged, user-accepted application was rebuilt with ESP-IDF 5.5.3 and pack
 
 2048 and Pirate's Folly passed earlier user tests; they are historical evidence, not a claim that those ROMs remain installed. Compatibility attaches to the tested ROM, not merely a title or filename.
 
-GB and dual-mode GBC cartridges run in DMG mode. GBC-only ROMs are rejected; full GBC support is not enabled. GBA is not supported. Supported cartridge types are `00/01/02/03/05/06/0f/10/11/12/13/19/1a/1b/1c/1d/1e`, subject to header/size validation and at most 32 KiB SRAM. Web uploads have a 3 MiB total user-ROM quota within the 4 MiB ROM partition; free space may also be limited by contiguous allocation. These constraints are not guarantees of game compatibility.
+GB and dual-mode GBC cartridges run in DMG mode. GBC-only ROMs are rejected; full GBC support is not enabled. GBA is not supported. Supported cartridge types are `00/01/02/03/05/06/0f/10/11/12/13/19/1a/1b/1c/1d/1e`, subject to header/size validation and at most 32 KiB SRAM. The current upload limit within the 4 MiB ROM partition is 4,177,920 bytes (3.984375 MiB) after metadata reservation and 16 KiB bank alignment; contiguous allocation can reduce the next upload size. These constraints are not guarantees of game compatibility.
 
 ## Regression results and remaining checks
 
@@ -56,7 +56,7 @@ At the earlier archive-import stage, `.git` was absent. A local Git repository h
 
 | Board check | Current acceptance |
 | --- | --- |
-| Five-minute Kirby session, disconnect/reconnect, pause/settings/resume, management hotspot enter/exit | Requested together; pending current-session results |
+| Five-minute Kirby session, disconnect/reconnect, pause/settings/resume, management hotspot enter/exit | Controller pause/settings navigation and web capacity confirmed by user on 2026-09-24; five-minute play, reconnect and hotspot exit remain pending |
 | Normal battery save and reload | Previously user-confirmed; new host fault-recovery coverage passed |
 | Web upload and Chinese rename | Previously user-confirmed; this pass did not delete any installed ROM |
 | Deleting a disposable ROM and its saves through the web page | On-device end-to-end check pending; host save cleanup passed |
@@ -66,7 +66,7 @@ At the earlier archive-import stage, `.git` was absent. A local Git repository h
 
 Final startup capture: `build/storage_quota_final_boot.log`; display, buttons, BLE scan and battery initialization were reached. This short boot check does not verify management-page transactions or gameplay watchdog behavior. No new user-operated regression was requested.
 
-The subsequent 2503744-byte application fixes the missing aggregate 3 MiB upload quota. Available upload size is now the smaller of the remaining quota and the largest free region; the web API reports the 3 MiB quota as capacity. Existing games are not removed when already above quota. JSON list output also reserves enough space for escaped game names. Build, merged-image verification and app-only COM14 flash passed.
+At that earlier stage, the subsequent 2503744-byte application fixed the missing aggregate 3 MiB upload quota. At that time, available upload size was the smaller of the remaining quota and the largest free region; the web API reported the 3 MiB quota as capacity. Existing games were not removed when already above quota. JSON list output also reserves enough space for escaped game names. Build, merged-image verification and app-only COM14 flash passed.
 
 Seventeen host groups passed in `build/host-regression-zhbgenkc/results.json`; the subsequently added deletion-handler group passed separately, making 18 groups. Production storage code is exercised with a RAM Flash model: interrupted transfer, invalid size/CGB-only headers, duplicate names, torn directory publication, failed deletion, retry, rename, space reuse, content corruption and aggregate quota. The model uses a deterministic test digest, not real SHA-256 verification. The production HTTP deletion handler is compiled with isolated dependencies to test shared saves, invalid identifiers, origin rejection, unavailable saves and write/cleanup failures. Existing save-file tests cover actual host file removal. These layers do not establish a real device HTTP transaction or physical power-loss durability.
 

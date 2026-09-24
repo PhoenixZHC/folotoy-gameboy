@@ -8,7 +8,7 @@
 
 #define DIRECTORY_SECTORS 2
 #define SECTOR_BYTES 4096u
-#define USER_ROM_LIMIT (3u * 1024u * 1024u)
+#define ROM_BANK_BYTES 16384u
 
 typedef struct {
     char magic[4];
@@ -194,7 +194,12 @@ static uint32_t find_gap(uint32_t bytes) {
     return 0;
 }
 
-size_t gb_storage_limit(void) { return USER_ROM_LIMIT; }
+size_t gb_storage_limit(void) {
+    if (!s_partition || s_partition->size <= (DIRECTORY_SECTORS + 1) * SECTOR_BYTES)
+        return 0;
+    size_t capacity = s_partition->size - (DIRECTORY_SECTORS + 1) * SECTOR_BYTES;
+    return capacity / ROM_BANK_BYTES * ROM_BANK_BYTES;
+}
 
 size_t gb_storage_used(void) {
     size_t used = 0;
@@ -212,7 +217,8 @@ size_t gb_storage_free_bytes(void) {
 size_t gb_storage_available(void) {
     if (!s_partition) return 0;
     size_t used = gb_storage_used();
-    if (used >= USER_ROM_LIMIT) return 0;
+    size_t limit = gb_storage_limit();
+    if (used >= limit) return 0;
     uint32_t best = 0;
     for (uint32_t from = SECTOR_BYTES; from < data_end();) {
         uint32_t to = data_end();
@@ -229,8 +235,10 @@ size_t gb_storage_available(void) {
         if (to - from > best) best = to - from;
         from = to == data_end() ? data_end() : to;
     }
-    size_t quota_left = USER_ROM_LIMIT - used;
-    return best < quota_left ? best : quota_left;
+    size_t quota_left = limit - used;
+    size_t available = best < quota_left ? best : quota_left;
+    available = available / ROM_BANK_BYTES * ROM_BANK_BYTES;
+    return available >= 32768 ? available : 0;
 }
 
 static bool publish_directory(const gb_rom_entry_t *entries, size_t count) {
@@ -294,7 +302,7 @@ static bool valid_name(const char *name, size_t except) {
 bool gb_storage_upload(const char *name, size_t bytes,
                        gb_storage_reader_t reader, void *context) {
     if (!s_partition || !reader || !valid_name(name, SIZE_MAX) || s_count >= GB_STORAGE_MAX_ROMS ||
-        bytes < 32768 || bytes > USER_ROM_LIMIT || bytes % 16384 ||
+        bytes < 32768 || bytes > gb_storage_limit() || bytes % ROM_BANK_BYTES ||
         bytes > gb_storage_available()) return false;
     uint32_t offset = find_gap((uint32_t)bytes);
     if (!offset) return false;

@@ -83,43 +83,57 @@ static bool settings_save(void) {
     return e == ESP_OK;
 }
 
+static gb_menu_action_t board_menu_action(button_message_t msg) {
+    if (msg.event != BSP_BTN_CLICK) return GB_MENU_NONE;
+    if (msg.button == BSP_BTN_UP) return GB_MENU_UP;
+    if (msg.button == BSP_BTN_DOWN) return GB_MENU_DOWN;
+    if (msg.button == BSP_BTN_OK) return GB_MENU_CONFIRM;
+    return GB_MENU_NONE;
+}
+
 static void settings_loop(void) {
     size_t selected = 0;
     bool editing = false, dirty = true;
+    gb_menu_input_t pad_input;
+    gb_menu_input_init(&pad_input, gamepad_snapshot());
     int64_t refreshed = 0;
     int64_t footer_started = esp_timer_get_time(), footer_refreshed = 0;
     while (true) {
         button_message_t msg;
-        if (xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
-            if (msg.event == BSP_BTN_LONG && msg.button == BSP_BTN_OK) {
-                if (editing) { editing = false; settings_save(); }
-                else return;
-                dirty = true;
-            } else if (msg.event == BSP_BTN_CLICK) {
-                if (editing) {
-                    if (msg.button == BSP_BTN_UP || msg.button == BSP_BTN_DOWN) {
-                        int change = msg.button == BSP_BTN_UP ? 10 : -10;
-                        if (selected == 0) {
-                            int value = (int)s_volume + change;
-                            s_volume = value < 0 ? 0 : value > 100 ? 100 : value;
-                        } else if (selected == 1) {
-                            int value = (int)s_brightness + change;
-                            s_brightness = value < 10 ? 10 : value > 100 ? 100 : value;
-                            bsp_display_backlight(s_brightness);
-                        }
-                    } else if (msg.button == BSP_BTN_OK) {
-                        editing = false;
-                        settings_save();
+        bool board_event = xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
+        gb_menu_action_t pad_action = gb_menu_input_step(&pad_input, gamepad_snapshot());
+        gb_menu_action_t action = board_event ? board_menu_action(msg) : GB_MENU_NONE;
+        if (board_event && msg.event == BSP_BTN_LONG && msg.button == BSP_BTN_OK)
+            action = GB_MENU_BACK;
+        if (action == GB_MENU_NONE) action = pad_action;
+        if (action == GB_MENU_BACK) {
+            if (editing) { editing = false; settings_save(); }
+            else return;
+            dirty = true;
+        } else if (action != GB_MENU_NONE) {
+            if (editing) {
+                if (action == GB_MENU_UP || action == GB_MENU_DOWN) {
+                    int change = action == GB_MENU_UP ? 10 : -10;
+                    if (selected == 0) {
+                        int value = (int)s_volume + change;
+                        s_volume = value < 0 ? 0 : value > 100 ? 100 : value;
+                    } else if (selected == 1) {
+                        int value = (int)s_brightness + change;
+                        s_brightness = value < 10 ? 10 : value > 100 ? 100 : value;
+                        bsp_display_backlight(s_brightness);
                     }
-                } else if (msg.button == BSP_BTN_UP) selected = (selected + 3) % 4;
-                else if (msg.button == BSP_BTN_DOWN) selected = (selected + 1) % 4;
-                else if (msg.button == BSP_BTN_OK) {
-                    if (selected == 3) return;
-                    if (selected == 2) { s_sound_enabled = !s_sound_enabled; settings_save(); }
-                    else editing = true;
+                } else if (action == GB_MENU_CONFIRM) {
+                    editing = false;
+                    settings_save();
                 }
-                dirty = true;
+            } else if (action == GB_MENU_UP) selected = (selected + 3) % 4;
+            else if (action == GB_MENU_DOWN) selected = (selected + 1) % 4;
+            else if (action == GB_MENU_CONFIRM) {
+                if (selected == 3) return;
+                if (selected == 2) { s_sound_enabled = !s_sound_enabled; settings_save(); }
+                else editing = true;
             }
+            dirty = true;
         }
         int64_t now = esp_timer_get_time();
         const char *footer = editing ? "上/下调整 OK保存 长按OK结束"
@@ -264,17 +278,28 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
     show_ui(connected ? "游戏暂停" : "手柄断开", hint, items, 5, selected,
             "上/下选择 OK确认");
     button_message_t msg;
+    gb_menu_input_t pad_input;
+    gb_menu_input_init(&pad_input, gamepad_snapshot());
     while (true) {
-        if (xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(50)) != pdTRUE) continue;
-        if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) {
+        bool board_event = xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
+        pad_sample_t pad = gamepad_snapshot();
+        gb_menu_action_t pad_action = gb_menu_input_step(&pad_input, pad);
+        gb_menu_action_t action = board_event ? board_menu_action(msg) : GB_MENU_NONE;
+        bool redraw = board_event;
+        if (board_event && msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) {
             if (gb_saves_write(session, hash)) return false;
             hint = "同步失败，进度仅在内存";
-        } else if (msg.event == BSP_BTN_CLICK) {
-            if (msg.button == BSP_BTN_UP) selected = (selected + 4) % 5;
-            else if (msg.button == BSP_BTN_DOWN) selected = (selected + 1) % 5;
-            else if (msg.button == BSP_BTN_OK) {
+        } else {
+            if (action == GB_MENU_NONE) action = pad_action;
+            if (action != GB_MENU_NONE) redraw = true;
+            if (action == GB_MENU_UP) selected = (selected + 4) % 5;
+            else if (action == GB_MENU_DOWN) selected = (selected + 1) % 5;
+            else if (action == GB_MENU_BACK) {
+                if (pad.connected) return true;
+                hint = "请重新连接手柄";
+            } else if (action == GB_MENU_CONFIRM) {
                 if (selected == 0) {
-                    if (gamepad_snapshot().connected) return true;
+                    if (pad.connected) return true;
                     hint = "请重新连接手柄";
                 } else if (selected == 1) {
                     if (!battery) hint = "此游戏无电池存档";
@@ -283,18 +308,23 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
                                     ? "同步完成，重进后读取" : "同步失败，进度仅在内存";
                 } else if (selected == 2) {
                     settings_loop();
+                    gb_menu_input_init(&pad_input, gamepad_snapshot());
                     hint = battery ? "游戏内存档，重进后读取" : "此游戏无电池存档";
                 } else if (selected == 3) {
                     if (!screen_off_loop()) hint = "息屏恢复失败，请重试";
                     else if (gamepad_snapshot().connected) return true;
                     else hint = "请重新连接手柄";
+                    gb_menu_input_init(&pad_input, gamepad_snapshot());
                 } else {
                     if (gb_saves_write(session, hash)) return false;
                     hint = "同步失败，进度仅在内存";
                 }
             }
         }
-        connected = gamepad_snapshot().connected;
+        bool now_connected = gamepad_snapshot().connected;
+        redraw |= now_connected != connected;
+        connected = now_connected;
+        if (!redraw) continue;
         show_ui(connected ? "游戏暂停" : "手柄断开",
                 selected == 3 ? "任意按键唤醒" : hint, items, 5, selected,
                 "上/下选择 OK确认");
@@ -306,12 +336,24 @@ static gb_port_keys_t port_keys(gb_keys_t k) {
                             .a=k.a,.b=k.b,.select=k.select,.start=k.start};
 }
 
-static bool poll_pause(void) {
+typedef struct {
+    bool pause;
+    bool start;
+    bool select;
+} game_button_actions_t;
+
+static game_button_actions_t poll_game_buttons(void) {
     button_message_t msg;
-    bool pause = false;
-    while (xQueueReceive(s_buttons, &msg, 0) == pdTRUE)
-        if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) pause = true;
-    return pause;
+    game_button_actions_t actions = {0};
+    while (xQueueReceive(s_buttons, &msg, 0) == pdTRUE) {
+        if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG)
+            actions.pause = true;
+        else if (msg.event == BSP_BTN_CLICK) {
+            if (msg.button == BSP_BTN_OK) actions.start = true;
+            else if (msg.button == BSP_BTN_UP) actions.select = true;
+        }
+    }
+    return actions;
 }
 
 static bool pairing_loop(void) {
@@ -440,9 +482,9 @@ static void run_game(size_t index) {
     gb_frame_pacing_t pacing;
     gb_frame_pacing_init(&pacing);
     while (true) {
-        bool pause = poll_pause();
+        game_button_actions_t board = poll_game_buttons();
         pad_sample_t pad = gamepad_snapshot();
-        if (pause || !pad.connected) {
+        if (board.pause || !pad.connected) {
             gb_port_set_keys(session, (gb_port_keys_t){0});
             if (audio_enabled && !gb_audio_stop()) {
                 gb_port_destroy(session); show_error("声音停止失败"); return;
@@ -471,7 +513,10 @@ static void run_game(size_t index) {
             audio_blocks = 0;
             continue;
         }
-        gb_port_set_keys(session, port_keys(gb_input_map(pad)));
+        gb_keys_t keys = gb_input_map(pad);
+        keys.start |= board.start;
+        keys.select |= board.select;
+        gb_port_set_keys(session, port_keys(keys));
         uint8_t key_bits = (uint8_t)((pad.right ? 1 : 0) | (pad.left ? 2 : 0) |
                            (pad.up ? 4 : 0) | (pad.down ? 8 : 0) |
                            (pad.a ? 16 : 0) | (pad.b ? 32 : 0) |

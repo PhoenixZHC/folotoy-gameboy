@@ -72,7 +72,7 @@
       <label class="picker" for="file"><span>选择 GB 游戏文件</span><input id="file" type="file" accept=".gb"></label>
       <label class="name-label" for="name">设备上显示的游戏名</label>
       <input id="name" class="name-input" type="text" autocomplete="off" placeholder="选择文件后自动填写">
-      <p class="note">支持中文名，最多 31 字节（约 10 个汉字）。仅支持 .gb，游戏合计不超过 3 MiB。</p>
+      <p id="upload-note" class="note">支持中文名，最多 31 字节（约 10 个汉字）。仅支持 .gb；容量以设备显示为准，上传还需要连续空闲空间。</p>
       <button id="upload" class="primary" type="button">上传 GB 游戏</button>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </section>
@@ -81,6 +81,7 @@
   <script>
     const $ = id => document.getElementById(id);
     const mib = bytes => (bytes / 1048576).toFixed(2) + ' MiB';
+    let capacity = 0;
     const nameBytes = value => new TextEncoder().encode(value).length;
     function shortName(value) { let result = ''; for (const char of value) { if (nameBytes(result + char) > 31) break; result += char; } return result; }
     function message(text, kind = '') { $('status').textContent = text; $('status').className = 'status ' + kind; }
@@ -95,6 +96,8 @@
         const response = await fetch('/api/games', {cache:'no-store'});
         if (!response.ok) throw new Error('读取失败');
         const data = await response.json();
+        capacity = data.capacity;
+        $('upload-note').textContent = '支持中文名，最多 31 字节（约 10 个汉字）。仅支持 .gb，游戏合计上限 ' + mib(capacity) + '；上传还需要连续空闲空间。';
         const percent = data.capacity ? Math.min(100, Math.round(data.used * 100 / data.capacity)) : 0;
         $('capacity').textContent = mib(data.used) + ' / ' + mib(data.capacity);
         $('used').textContent = '已使用 ' + percent + '%';
@@ -140,7 +143,8 @@
       const file = $('file').files[0];
       if (!file) return message('请先选择 .gb 文件', 'error');
       if (!/\.gb$/i.test(file.name)) return message('仅支持 .gb 文件', 'error');
-      if (file.size < 32768 || file.size > 3145728) return message('文件需在 32 KiB 至 3 MiB 之间', 'error');
+      if (file.size < 32768 || file.size % 16384) return message('文件需至少 32 KiB，且大小为 16 KiB 的整数倍', 'error');
+      if (capacity && file.size > capacity) return message('文件超过游戏总容量', 'error');
       const name = $('name').value.trim();
       if (!name || nameBytes(name) > 31) return message('名称需在 31 字节以内，约 10 个汉字', 'error');
       const button = $('upload'); button.disabled = true; message('正在上传，请保持连接…');
