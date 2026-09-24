@@ -12,6 +12,10 @@
 
 ## Unreleased
 
+- Added board Start/Select shortcuts for controllers without those buttons: short board OK sends Start and short board Up sends Select during gameplay; long board OK still pauses.
+- Added controller D-pad, A, and B navigation to the pause menu and Settings, with edge detection to avoid activating a held button on entry or reconnection. The IINE-1001 mini controller passed a focused device check.
+- Raised aggregate Game Boy ROM capacity from 3 MiB to 4,177,920 bytes (about 3.98 MiB) within the existing partition layout, preserving ROM metadata and save partitions.
+
 - Added the supplied 80-byte CW2017 profile for the specified 520 mAh cell, including content/update-flag checks, verified writes, the required restart sequence, and bounded SOC-readiness polling.
 
 - Expanded the environment bootstrap document: added Espressif's Git service mirror (`git.espressif.com.cn`) as the preferred mainland-China route for ESP-IDF v5.5.3 and its submodules, documented submodule long-wait/timeout handling, in-place repair, and the pinned-commit shallow fetch for large submodules such as `esp32-wifi-lib`, warned about stale per-repository Jihulab `insteadOf` residue, and added the official offline release archive as a last-resort fallback (learned from `esp-mosaico/esp-mosaico-vibe`).

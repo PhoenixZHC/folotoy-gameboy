@@ -10,6 +10,10 @@
 
 ## Unreleased
 
+- 为没有 Start／Select 键的手柄增加机身补键：游戏中短按机身 OK 输入 Start，短按机身上键输入 Select；长按机身 OK 仍可暂停。
+- 暂停菜单和设置页支持手柄方向键、A、B 操作，并按按键边沿处理，避免进入页面或重连时误触发已按住的键。良值 IINE-1001 迷你手柄已通过定向真机检查。
+- 在现有分区布局内将 Game Boy 游戏合计容量从 3 MiB 提高到 4,177,920 字节（约 3.98 MiB），保留 ROM 目录和存档分区。
+
 - 加入厂家为优特利 520mAh 电芯生成的 80 字节 CW2017 profile，并实现内容与更新标志检查、写入后校验、规定的重启时序以及有上限的 SOC 就绪等待。
 
 - 扩充环境引导文档：新增乐鑫 Git 服务镜像（`git.espressif.com.cn`）作为中国大陆首选线路，覆盖 ESP-IDF v5.5.3 及其子模块；补充子模块长等待/超时处理、原地修复，以及 `esp32-wifi-lib` 等大仓的按钉死 commit 浅取；提示按仓库残留的 Jihulab `insteadOf` 旧配置；并把官方离线 release 压缩包加入兜底方案（经验来自 `esp-mosaico/esp-mosaico-vibe`）。
