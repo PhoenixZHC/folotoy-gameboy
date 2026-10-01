@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
+# 用户确认的产品版本；设置页从固件描述信息读取，避免重复维护。
+set(PROJECT_VER "1.3")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 project(FoloToy-AI-Passport)

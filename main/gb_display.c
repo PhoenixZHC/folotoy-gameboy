@@ -9,6 +9,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "gb_pixels.h"
+#include "gb_port.h"
 #include "ui_font.h"
 #include <ctype.h>
 #include <string.h>
@@ -184,7 +185,8 @@ esp_err_t gb_display_color_frame(const uint8_t *indices,
     esp_err_t idle = wait_frame_idle();
     if (idle != ESP_OK) return idle;
     s_previous_valid = false;
-    uint16_t colors[64];
+    uint16_t colors[GB_PORT_COLOR_BLANK + 1];
+    colors[GB_PORT_COLOR_BLANK] = 0xffff;
     for (int i = 0; i < 64; i++) {
         const uint8_t *palette = i < 32 ? bg_palette : obj_palette;
         int offset = (i % 32) * 2;
@@ -202,7 +204,10 @@ esp_err_t gb_display_color_frame(const uint8_t *indices,
             int sy = (row + dy) * 2 / 3;
             uint16_t *out = s_strip + dy * 240;
             const uint8_t *src = indices + sy * GB_WIDTH;
-            for (int x = 0; x < 240; x++) out[x] = colors[src[x * 2 / 3] & 63];
+            for (int x = 0; x < 240; x++) {
+                uint8_t index = src[x * 2 / 3];
+                out[x] = colors[index <= GB_PORT_COLOR_BLANK ? index : GB_PORT_COLOR_BLANK];
+            }
         }
         esp_err_t e = send_strip(0, 52 + row, 240, rows);
         if (e != ESP_OK) return e;

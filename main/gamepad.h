@@ -9,5 +9,7 @@ esp_err_t gamepad_start(void);
 void gamepad_set_scanning(bool enabled);
 pad_sample_t gamepad_snapshot(void);
 gamepad_discovery_t gamepad_discovery_snapshot(void);
+// Refresh discovery on explicit pairing entry; retain an active reconnect target.
+void gamepad_begin_discovery(void);
 bool gamepad_select_candidate(size_t index);
 void gamepad_clear_selection(void);

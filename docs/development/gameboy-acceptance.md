@@ -2,7 +2,18 @@
 
 # Game Boy baseline acceptance
 
-## Baseline
+## Current 1.3 status (2026-10-01)
+
+The current local application is `build/review-fixes-1.3/FoloToy-AI-Passport.bin`; the complete package is `artifacts/releases/FoloToy-GameBoy-1.3-full.bin`. Version 1.3 includes BLE keyboard controls, 16 kHz audio, a green monochrome game palette, per-game launch animation, deletable preinstalled games, and the four storage/display/discovery review fixes. See the [controls](../../README.md#bluetooth-keyboards), [firmware guide](release/gameboy-firmware.md), and [build-specific validation](gameboy-validation.md).
+
+- Build: PASS; complete-image layout and checksum verification passed.
+- Host tests: PASS, 29 groups and both supplied ROMs for 900 host frames each.
+- Device tests: PASS for the repair build's application-only COM14 write and 25-second startup observation. The user confirmed normal behavior on the preceding 1.3 build.
+- Unverified: physical keyboards including MCHOSE, gameplay/audio after the final PPU repair, real multi-client management and storage faults, full-image first installation of the repair build, and endurance/performance limits.
+
+The sections below retain historical acceptance evidence; they do not establish that the latest binary passed every earlier device test.
+
+## Historical baseline
 
 The historical rollback package is `artifacts/baselines/20260917-173843-3f40fec9e627/`. App size: 2503632 bytes; SHA-256: `3f40fec9e62789d53e724f01b1598442fc59e0b5ce62e586b216bc96415df98d`. It includes source, dependencies, configuration, application and ELF, but not installed ROMs or user data. This package has a known IDLE watchdog warning discovered during acceptance; it is not an accepted stable release.
 
@@ -72,4 +83,4 @@ Seventeen host groups passed in `build/host-regression-zhbgenkc/results.json`; t
 
 ## Audio limit
 
-The output remains 14 kHz and the APU generates native-rate blocks. Audio queue waits measure time waiting for a new block; they do not directly count I2S underruns. No queue drops and a passing tone test do not prove uninterrupted music. The user reports tempo variation remains but is substantially improved. Game-driven note changes still depend on emulated CPU progress; buffering cannot restore delayed game events. Stable original-speed music in complex scenes remains outside the accepted result.
+Current output is 16 kHz, with native-rate APU blocks and a supported 4.096 MHz ES8311 master clock. This replaces the earlier unsupported 14 kHz configuration; the [validation record](gameboy-validation.md) separates that correction from older listening results. Audio queue waits measure time waiting for a new block; they do not directly count I2S underruns. No queue drops and a passing tone test do not prove uninterrupted music. The user previously reported improved but variable tempo. Game-driven note changes still depend on emulated CPU progress; buffering cannot restore delayed game events. Stable original-speed music in complex scenes remains outside the accepted result.

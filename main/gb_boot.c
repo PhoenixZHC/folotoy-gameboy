@@ -1,4 +1,5 @@
 #include "gb_boot.h"
+#include "gb_audio_pacing.h"
 #include <string.h>
 
 // Cartridge-header logo encoding; redraw the DMG sequence without a boot ROM.
@@ -28,13 +29,15 @@ void gb_boot_frame(uint8_t frame[GB_FRAME_BYTES], int top) {
         if (registered[y] & (0x80u >> x)) dot(frame,128+x,top+y);
 }
 
-// DMG two-note square-wave chime at 14 kHz; honour the saved volume externally.
+// Keep the two pitches and envelope timing independent of the output sample rate.
 int16_t gb_boot_sample(uint32_t sample) {
-    const uint32_t first = 4 * 234, end = 4 * 234 + 15 * 656;
+    const uint32_t first = (uint64_t)GB_AUDIO_OUTPUT_RATE * 4 * 70224 / 4194304;
+    const uint32_t decay = GB_AUDIO_OUTPUT_RATE * 3 / 64;
+    const uint32_t end = first + 15 * decay;
     if (sample >= end) return 0;
     uint32_t n = sample < first ? sample : sample - first;
     uint32_t period = sample < first ? 125 : 63;
-    uint32_t level = 15 - (n / 656 > 15 ? 15 : n / 656);
+    uint32_t level = 15 - (n / decay > 15 ? 15 : n / decay);
     int amplitude = (int)level * 180;
-    return ((uint64_t)n * 262144 / (14000 * period)) & 1 ? amplitude : -amplitude;
+    return ((uint64_t)n * 262144 / (GB_AUDIO_OUTPUT_RATE * period)) & 1 ? amplitude : -amplitude;
 }

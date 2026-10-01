@@ -6,7 +6,7 @@ uint8_t gb_pixel_shade(const uint8_t *frame, int x, int y) {
 }
 
 uint16_t gb_pixel_rgb565(uint8_t shade) {
-    static const uint16_t colors[4] = {0xffff, 0xbdd7, 0x7bef, 0x0000};
+    static const uint16_t colors[4] = {GB_LCD_LIGHT, GB_LCD_MID, GB_LCD_SHADE, GB_LCD_DARK};
     return colors[shade & 3];
 }
 

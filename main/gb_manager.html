@@ -94,7 +94,12 @@
     async function refresh() {
       try {
         const response = await fetch('/api/games', {cache:'no-store'});
-        if (!response.ok) throw new Error('读取失败');
+        if (!response.ok) {
+          const text = await response.text();
+          $('games').replaceChildren();
+          message(text || '读取失败', 'error');
+          return;
+        }
         const data = await response.json();
         capacity = data.capacity;
         $('upload-note').textContent = '支持中文名，最多 31 字节（约 10 个汉字）。仅支持 .gb，游戏合计上限 ' + mib(capacity) + '；上传还需要连续空闲空间。';
@@ -108,7 +113,7 @@
         const list = $('games');
         list.replaceChildren();
         if (!data.games.length) { const empty = document.createElement('li'); empty.className = 'empty'; empty.textContent = '还没有游戏，可以在下方上传 .gb 文件'; list.append(empty); }
-        data.games.forEach((game, index) => {
+        data.games.forEach(game => {
           const row = document.createElement('li'); row.className = 'game';
           const icon = document.createElement('span'); icon.className = 'cart'; icon.setAttribute('aria-hidden','true');
           const info = document.createElement('span'); info.className = 'game-info';
@@ -125,13 +130,13 @@
             const value = next.trim();
             if (!value || nameBytes(value) > 31) return message('名称需在 31 字节以内，约 10 个汉字', 'error');
             rename.disabled = true;
-            try { const result = await fetch('/rename?id=' + index + '&name=' + encodeURIComponent(value), {method:'POST'}); const text = await result.text(); message(text, result.ok ? 'success' : 'error'); await refresh(); }
+            try { const result = await fetch('/rename?token=' + encodeURIComponent(game.token) + '&name=' + encodeURIComponent(value), {method:'POST'}); const text = await result.text(); message(text, result.ok ? 'success' : 'error'); await refresh(); }
             catch (error) { message('改名失败：连接已中断', 'error'); rename.disabled = false; }
           };
           remove.onclick = async () => {
             if (!confirm('删除“' + game.name + '”及对应存档？此操作无法撤销。')) return;
             remove.disabled = true;
-            try { const result = await fetch('/delete?id=' + index, {method:'POST'}); const text = await result.text(); message(text, result.ok ? 'success' : 'error'); await refresh(); }
+            try { const result = await fetch('/delete?token=' + encodeURIComponent(game.token), {method:'POST'}); const text = await result.text(); message(text, result.ok ? 'success' : 'error'); await refresh(); }
             catch (error) { message('删除失败：连接已中断', 'error'); remove.disabled = false; }
           };
           const actions = document.createElement('span'); actions.className = 'actions'; actions.append(rename,remove);

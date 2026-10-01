@@ -19,6 +19,12 @@ def main():
     cases = [
         ('gamepad_discovery', ['main/gamepad_discovery.c']),
         ('gb_input', ['main/gb_input.c']),
+        ('gb_keyboard_hid', ['main/gb_input.c',
+                             'components/bluepad32/parser/uni_hid_parser.c',
+                             'components/bluepad32/parser/uni_hid_parser_keyboard.c',
+                             'components/bluepad32/controller/uni_gamepad.c',
+                             'components/btstack/src/btstack_hid_parser.c',
+                             'components/btstack/src/btstack_util.c']),
         ('gb_name', ['main/gb_name.c']),
         ('gb_pixels', ['main/gb_pixels.c']),
         ('gb_render', ['tests/stubs/sdfat_stub.cpp']),
@@ -56,11 +62,21 @@ def main():
                    '-O2', '-Wall', '-Wextra', '-Werror'] + includes
         if cpp:
             command += ['-Wno-unused-parameter']
+        if name == 'gb_keyboard_hid':
+            command += ['-Itests/keyboard_stubs', '-Icomponents/bluepad32/include',
+                        '-Icomponents/btstack/src']
         if name == 'gb_audio':
-            command += ['-DMINIGB_APU_AUDIO_FORMAT_S16SYS=1', '-DAUDIO_SAMPLE_RATE=14000']
+            command += ['-DMINIGB_APU_AUDIO_FORMAT_S16SYS=1', '-DAUDIO_SAMPLE_RATE=16000']
         command += [f'tests/test_{name}.{"cpp" if cpp else "c"}', *sources,
                     '-o', str(executable)]
         run(name, [(command, ROOT), ([str(executable)], work)])
+    for target in ['ESP32C3', 'ESP32']:
+        executable = work / ('bt_setup_' + target + ('.exe' if os.name == 'nt' else ''))
+        command = [cc, '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+                   '-DCONFIG_BLUEPAD32_MAX_DEVICES=1', '-DCONFIG_IDF_TARGET_' + target + '=1',
+                   '-Itests/keyboard_stubs', '-Icomponents/bluepad32/include', '-Icomponents/btstack/src',
+                   'tests/test_bt_setup.c', '-o', str(executable)]
+        run('bt_setup_' + target, [(command, ROOT), ([str(executable)], work)])
     for name in ['ui_font', 'verify_firmware', 'package_gameboy_release', 'pack_roms', 'gameboy_layout', 'gb_web_delete']:
         run(name, [([sys.executable, '-B', str(ROOT / f'tests/test_{name}.py')], ROOT)])
     summary = {'passed': sum(item['passed'] for item in results),

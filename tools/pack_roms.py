@@ -25,21 +25,35 @@ def declared_size(code: int) -> int:
     return {0x52: 72 * 16384, 0x53: 80 * 16384, 0x54: 96 * 16384}.get(code, 0)
 
 
-def pack(paths: list[Path]) -> bytes:
+def encode_name(name: str) -> bytes:
+    encoded = name.encode("utf-8")
+    if not encoded or len(encoded) > 31 or any(
+        ord(c) < 0x20 or 0x7F <= ord(c) < 0xA0 or c in "/\\"
+        or ord(c) > 0xFFFF or 0xD800 <= ord(c) <= 0xDFFF
+        or 0x2000 <= ord(c) <= 0x200F or ord(c) in (0x2028, 0x2029, 0xFEFF)
+        for c in name
+    ):
+        raise ValueError(f"Invalid ROM name: {name!r}")
+    return encoded
+
+
+def pack(paths: list[Path], display_names: list[str] | None = None) -> bytes:
     if not 1 <= len(paths) <= MAX_ROMS:
         raise ValueError(f"Provide 1 to {MAX_ROMS} ROMs")
+    if display_names is not None and len(display_names) != len(paths):
+        raise ValueError("Provide one display name per ROM")
     image = bytearray(b"\xff" * 4096)
     entries = []
     names = set()
-    for path in paths:
+    for index, path in enumerate(paths):
         data = path.read_bytes()
         if len(data) < 32768 or len(data) > MAX_IMAGE or len(data) % 16384:
             raise ValueError(f"Invalid ROM length: {path}")
         if (declared_size(data[0x148]) != len(data) or data[0x143] == 0xC0
                 or data[0x147] not in SUPPORTED_TYPES):
             raise ValueError(f"Unsupported ROM header or CGB-only cartridge: {path}")
-        name = path.stem.encode("utf-8")
-        if not name or len(name) > 31 or name in names:
+        name = encode_name(display_names[index] if display_names is not None else path.stem)
+        if name in names:
             raise ValueError(f"Invalid or duplicate ROM name: {path}")
         names.add(name)
         offset = aligned(len(image))

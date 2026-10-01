@@ -5,6 +5,7 @@
 
 _Static_assert(AUDIO_SAMPLE_RATE == GB_AUDIO_SOURCE_RATE, "APU/source rate mismatch");
 _Static_assert(AUDIO_SAMPLES == GB_AUDIO_SOURCE_SAMPLES, "APU/block size mismatch");
+_Static_assert(GB_AUDIO_OUTPUT_RATE == 16000u, "Use the ES8311-supported 16 kHz clock pair");
 
 int main(void) {
     struct minigb_apu_ctx apu;

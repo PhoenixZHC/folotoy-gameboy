@@ -4,12 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "esp_err.h"
-
-// Original monochrome Game Boy LCD palette, encoded as RGB565.
-#define GB_LCD_LIGHT 0x9DC2
-#define GB_LCD_MID   0x8D42
-#define GB_LCD_SHADE 0x3306
-#define GB_LCD_DARK  0x09C2
+#include "gb_pixels.h"
 
 esp_err_t gb_display_init(void);
 esp_err_t gb_display_screen_on(bool on);

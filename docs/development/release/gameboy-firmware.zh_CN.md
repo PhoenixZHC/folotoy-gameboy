@@ -16,6 +16,24 @@ Get-FileHash -Algorithm SHA256 -LiteralPath 'artifacts\releases\FoloToy-GameBoy-
 
 打包工具在写出前会核对固定分区、源码镜像、重新生成的清洁 SPIFFS、准确的 8 MiB 长度，以及未使用区、ROM、NVS 均为擦除态。本地产物为 `artifacts/releases/FoloToy-GameBoy-8MB-clean.bin`，其 SHA-256 应与同目录 `.sha256` 文件一致。这两个本地产物均被 Git 忽略。不要把商业或用户提供的 ROM、设备 Flash 回读、NVS 转储、存档、配对数据加入源码仓库或 GitHub Release。较小的 `FoloToy-AI-Passport-full.bin` 是 ESP-IDF 的合并固件，只到应用末尾，**并非**整片 8 MiB 镜像。
 
+## 可选预装游戏
+
+当前本地 1.3 固件包为 `artifacts/releases/FoloToy-GameBoy-1.3-full.bin`，同目录提供 `.bin.sha256` 文件。它使用 `build/review-fixes-1.3` 中已修复的应用，与 COM14 本次应用更新一致，并包含用户提供的两款游戏。改动与验证范围见 [1.3 更新日志](../../CHANGELOG.zh_CN.md)。此固件包尚未公开发布。
+
+通过重复的 `--rom` 参数，将本地游戏放入普通可写 ROM 分区。原文件名过长时，按相同顺序为每个 ROM 指定一个 `--rom-name`（各不超过 31 个 UTF-8 字节）；不改名、不修改源文件。不指定 `--output` 时，预装模式生成 `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`；不传 `--rom` 仍生成 CI 使用的无游戏清洁版。
+
+```powershell
+$redRom = 'E:\BaiduNetdiskDownload\GB ROM\口袋妖怪红(精灵宝可梦红) (简)(修正版+完美LOGO)(sss888+RickyL1213+fciq)(8Mb).gb'
+$marioRom = 'E:\BaiduNetdiskDownload\GB ROM\超级马里奥大陆(简)(v2.0)(星夜之幻)(0.5Mb).gb'
+$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/review-fixes-1.3', '--rom', $redRom, '--rom-name', '口袋妖怪红', '--rom', $marioRom, '--rom-name', '超级马里奥大陆', '--output', 'artifacts/releases/FoloToy-GameBoy-1.3-full.bin')
+& python.exe @packageArgs
+& python.exe @packageArgs --verify
+```
+
+两款本地文件分别为 1,048,576 和 131,072 字节；马里奥文件名中的容量后缀与实际长度不符，因此按卡带头及实际字节校验。预装镜像仍恰好为 8 MiB，NVS、PHY 与初始存档均为空。打包工具校验两款 ROM 哈希，并为 ROM 分区末尾两份可写目录保留擦除态空间。游戏进入普通列表、占用普通容量，可通过“游戏管理”改名或删除；删除后重启不恢复，空出的空间可供新上传游戏使用。没有开机自动补装或应用内的第二份副本，只有重新安装完整预装镜像才恢复出厂游戏。
+
+这是本地首次安装镜像。以上命令只生成文件，不烧录、不发布；`--verify` 需要相同的 ROM 和名称参数，核对完整镜像及校验文件。不带 ROM 参数执行清洁版校验时会拒绝预装镜像。用户提供的 ROM 及生成镜像不进入源码仓库或自动公开发布流程。
+
 ## 首次安装与日常更新
 
 **仅用于首次安装或明确要清空全部数据时**，从 Flash `0x0` 烧录清洁版镜像。选定实际串口后，可用 ESP-IDF 的 esptool：
@@ -25,6 +43,8 @@ Get-FileHash -Algorithm SHA256 -LiteralPath 'artifacts\releases\FoloToy-GameBoy-
 ```
 
 此操作覆盖整片 8 MiB，包括所有游戏、电池存档、设置和手柄配对密钥。清洁版启动后游戏列表为空；进入“游戏管理”，连接 `FoloToy-GB` 热点，再上传自己有权使用的 ROM。已有安装应**只更新应用分区**：将 `build/FoloToy-AI-Passport.bin` 写到 `0x10000`，保留兼容的原有分区表、ROM、存档和 NVS；不能拿清洁版镜像当作普通升级包。
+
+预装版同样在首次安装时从 `0x0` 写入，也会覆盖所有游戏、存档、设置及绑定，启动后的列表包含所选游戏。它不是仅应用升级包：只刷 `FoloToy-AI-Passport.bin` 不会安装这些游戏。在已有设备上使用任何完整镜像前，都需另行批准。
 
 ## 仓库与发布
 

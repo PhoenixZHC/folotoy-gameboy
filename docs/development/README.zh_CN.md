@@ -15,6 +15,12 @@
 - 可以由 lint、测试或脚本强制的要求，应同时落实到自动化检查，不能只靠 agent 阅读文字。
 - 新增规约时在本文件更新索引。
 
+## Game Boy 固件
+
+- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.3 验收范围与历史实机结果。
+- [gameboy-validation.zh_CN.md](gameboy-validation.zh_CN.md)：构建、主机测试、设备测试及固件包证据。
+- [gameboy-sources.zh_CN.md](gameboy-sources.zh_CN.md)：第三方来源、许可证及本地适配。
+
 ## AI 工作流
 
 - [ai-guide.zh_CN.md](ai-guide.zh_CN.md)：AI 开发工作流（面向 AI 编程助手：上下文建立、需求拆解、BSP 边界、验收交付格式）。
@@ -36,7 +42,7 @@
 
 ## 发布/完成流程（release）
 
-- [gameboy-firmware.zh_CN.md](release/gameboy-firmware.zh_CN.md)：Game Boy 清洁版 8 MiB 镜像、数据影响与 GitHub 提交。
+- [gameboy-firmware.zh_CN.md](release/gameboy-firmware.zh_CN.md)：Game Boy 清洁版和预装版 8 MiB 镜像、数据影响与 GitHub 提交。
 - [publish-to-community.zh_CN.md](release/publish-to-community.zh_CN.md)：发布到社区说明（把当前固件发布到 AI Passport 社区市场）。
 - [project-completion.zh_CN.md](release/project-completion.zh_CN.md)：项目开发完成流程说明（一组可选收尾动作）。
 - [file-issues.zh_CN.md](release/file-issues.zh_CN.md)：提交 issue 说明（把建议作为上游 GitHub issue 提交）。

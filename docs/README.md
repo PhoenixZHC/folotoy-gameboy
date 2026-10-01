@@ -5,7 +5,7 @@ English | [简体中文](README.zh_CN.md)
 FoloToy AI Passport is open wearable AI hardware. This repository is the development baseline for the device. It keeps the **hardware facts, stable interfaces, resource boundaries, reference implementations, and validation methods** needed to build applications in one place.
 
 This checkout contains a [Game Boy firmware port](../README.md). The hardware reference below describes the upstream AI Passport baseline; its demo application and partition layout have been replaced in this checkout.
-The port's [validation status](development/gameboy-validation.md), [source/license record](development/gameboy-sources.md), and [clean 8 MiB installation and GitHub guide](development/release/gameboy-firmware.md) are maintained separately.
+The current local firmware is **1.3**, with BLE keyboard controls, green monochrome gameplay, per-game launch animation, and optional deletable preinstalled games. The port's [changelog](CHANGELOG.md), [acceptance limits](development/gameboy-acceptance.md), [validation status](development/gameboy-validation.md), [source/license record](development/gameboy-sources.md), and [clean/preloaded 8 MiB installation guide](development/release/gameboy-firmware.md) are maintained separately. Physical keyboard compatibility remains untested.
 
 The repository is organized around the following principles:
 

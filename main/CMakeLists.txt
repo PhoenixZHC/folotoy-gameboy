@@ -5,7 +5,7 @@ idf_component_register(
          "gb_audio_pacing.c" "gb_frame_pacing.c" "gb_boot.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "gb_manager.html"
-    REQUIRES bsp bluepad32 btstack gb_core nvs_flash esp_lcd esp_timer
+    REQUIRES bsp bluepad32 btstack gb_core nvs_flash esp_lcd esp_timer esp_app_format
              esp_partition mbedtls spiffs esp_wifi esp_netif esp_event esp_http_server
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2)

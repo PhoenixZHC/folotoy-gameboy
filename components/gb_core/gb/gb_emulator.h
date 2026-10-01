@@ -29,6 +29,7 @@
 // via SdFat (FsFile). The two share seek/read API shapes so the body
 // of readCachedBank() is byte-identical — only the type differs.
 #include "gb_emulator_base.h"
+#include "gb_port.h"
 #include "pokemon_red_patch.h"
 #include "gb_eink_patches.h"
 #include "cheats.h"
@@ -126,6 +127,10 @@ public:
     uint8_t lcdc_, lcdstat_, scy_, scx_, ly_, lyc_;
     uint8_t bgp_, obp0_, obp1_, wy_, wx_;
     uint8_t ppuMode_ = 0;  // 0=HBlank, 1=VBlank, 2=OAM, 3=Transfer
+    int ppuDots_ = 0;
+    int frameOvershoot_ = 0;
+    bool lcdChanged_ = false;
+    bool lcdFirstFrame_ = false;
 
     // ====== TIMER ======
     uint8_t tima_ = 0, tma_ = 0, tac_ = 0;
@@ -455,7 +460,9 @@ public:
         wy_ = 0; wx_ = 0;
 
         ime_ = false; halted_ = false; haltBug_ = false; eiPending_ = false;
-        ie_ = 0; iflag_ = 0; ppuMode_ = 0; prevStatLine_ = false;
+        ie_ = 0; iflag_ = 0; ppuMode_ = 2; prevStatLine_ = false;
+        ppuDots_ = frameOvershoot_ = 0;
+        lcdChanged_ = lcdFirstFrame_ = false;
 
         tima_ = 0; tma_ = 0; tac_ = 0;
         timerCounter_ = 0; divCounter_ = 0; divReg_ = 0;
@@ -662,6 +669,10 @@ public:
         mbc1Mode_ = hdr.mbc1Mode; mbc1Bank2_ = hdr.mbc1Bank2;
         refreshMappedRomBanks();
         ppuMode_ = hdr.ppuMode;
+        // Legacy snapshots store the PPU phase, but not its sub-phase clock.
+        ppuDots_ = ppuMode_ == 3 ? 80 : (ppuMode_ == 0 && (lcdc_ & 0x80)) ? 252 : 0;
+        frameOvershoot_ = 0;
+        lcdChanged_ = lcdFirstFrame_ = false;
         prevStatLine_ = hdr.prevStatLine != 0;
         memcpy(soundRegs_, hdr.soundRegs, sizeof(soundRegs_));
         frameCount = hdr.frameCount;
@@ -1144,11 +1155,19 @@ public:
                 bool wasOn = (lcdc_ & 0x80) != 0;
                 bool nowOn = (val & 0x80) != 0;
                 lcdc_ = val;
-                if (wasOn && !nowOn) {
+                if (wasOn != nowOn) {
                     ly_ = 0;
-                    ppuMode_ = 0;
+                    ppuMode_ = nowOn ? 2 : 0;
+                    ppuDots_ = 0;
+                    lcdChanged_ = true;
+                    lcdFirstFrame_ = nowOn;
                     prevStatLine_ = false;
                     windowLine_ = 0;
+                    if (!nowOn) {
+                        if (framebuf) memset(framebuf, 0, GB_FB_SIZE);
+                        if (colorFramebuf_) memset(colorFramebuf_, GB_PORT_COLOR_BLANK, GB_W * GB_H);
+                    }
+                    checkStatInterrupt();
                 }
                 return;
             }
@@ -1668,6 +1687,10 @@ public:
         return shadeRemap_[shade];
     }
 
+    bool windowVisible(int line) const {
+        return (lcdc_ & 0x20) && ((lcdc_ & 0x01) || isCgb_) && line >= wy_ && wx_ <= 166;
+    }
+
     void renderLine(int line) {
         if (!(lcdc_ & 0x80)) return;
         // Work in an unpacked 160-byte stack buffer so the per-pixel PPU
@@ -1721,7 +1744,7 @@ public:
         }
 
         // Window (uses internal line counter that only increments when window is drawn)
-        if ((lcdc_ & 0x20) && ((lcdc_ & 0x01) || isCgb_) && line >= wy_ && wx_ <= 166) {
+        if (windowVisible(line)) {
             uint16_t winMap = (lcdc_ & 0x40) ? 0x1C00 : 0x1800;
             uint16_t dataBase = (lcdc_ & 0x10) ? 0x0000 : 0x0800;
             bool signedIdx = !(lcdc_ & 0x10);
@@ -1881,6 +1904,7 @@ public:
 
     // Helper: fire STAT interrupt only on rising edge of IRQ line
     inline void checkStatInterrupt() {
+        if (!(lcdc_ & 0x80)) { prevStatLine_ = false; return; }
         bool line = false;
         if ((lcdstat_ & 0x40) && ly_ == lyc_) line = true;         // LYC match
         if ((lcdstat_ & 0x20) && ppuMode_ == 2) line = true;       // Mode 2 (OAM)
@@ -1891,47 +1915,52 @@ public:
     }
 
     void runFrame() {
-        windowLine_ = 0;  // Reset window internal line counter each frame
-        int cycles = 0;
-        for (ly_ = 0; ly_ < 154; ly_++) {
+        // Keep the CPU/timer budget independent of the PPU. LCDC writes can
+        // stop/restart the PPU mid-instruction without extending this host frame.
+        int elapsed = frameOvershoot_;
+        while (elapsed < 70224) {
+            const bool enabled = (lcdc_ & 0x80) != 0;
             const int speed = doubleSpeed_ ? 2 : 1;
-            const int lineEnd = 456 * speed;
-            auto runTo = [&](int end) {
-                while (cycles < end) {
-                    int c = cpu_step(end - cycles);
-                    updateTimer(c);
-                    cycles += c;
-                }
-            };
-            if (ly_ < 144) {
-                // Mode 2: OAM search (~20 cycles = 80 T-cycles)
-                ppuMode_ = 2;
-                checkStatInterrupt();
-                runTo(80 * speed);
-
-                // Render the line (mode 3: pixel transfer)
+            const int boundary = ly_ < 144 && ppuDots_ < 80 ? 80 :
+                                 ly_ < 144 && ppuDots_ < 252 ? 252 : 456;
+            int dots = enabled ? boundary - ppuDots_ : 456;
+            if (dots > 70224 - elapsed) dots = 70224 - elapsed;
+            const int budget = dots * speed;
+            int cycles = 0;
+            lcdChanged_ = false;
+            while (cycles < budget && !lcdChanged_) {
+                int c = cpu_step(budget - cycles);
+                updateTimer(c);
+                cycles += c;
+            }
+            elapsed += cycles / speed;
+            // The LCDC handler already reset the PPU on either transition.
+            if (!enabled || lcdChanged_) continue;
+            ppuDots_ += cycles / speed;
+            if (ly_ < 144 && ppuMode_ == 2 && ppuDots_ >= 80) {
                 ppuMode_ = 3;
                 checkStatInterrupt();
-                runTo(252 * speed);
-                if (renderThisFrame_) renderLine(ly_);
-
-                // Mode 0: HBlank. Polling games must execute in this phase.
+            }
+            if (ly_ < 144 && ppuMode_ == 3 && ppuDots_ >= 252) {
+                if (renderThisFrame_ && !lcdFirstFrame_) renderLine(ly_);
+                // The window's internal row advances even when output is skipped.
+                else if (windowVisible(ly_)) windowLine_++;
                 ppuMode_ = 0;
                 checkStatInterrupt();
-                runTo(lineEnd);
-            } else {
-                // VBlank (lines 144-153)
-                if (ly_ == 144) {
-                    ppuMode_ = 1;
-                    iflag_ |= 0x01;  // VBlank interrupt
-                    checkStatInterrupt();
-                }
-                runTo(lineEnd);
             }
-            // Carry instruction overshoot into the next line, rather than
-            // adding that time to every phase and slowing emulated timers.
-            cycles -= lineEnd;
+            if (ppuDots_ >= 456) {
+                ppuDots_ -= 456;
+                if (++ly_ >= 154) {
+                    ly_ = 0;
+                    windowLine_ = 0;
+                    lcdFirstFrame_ = false;
+                }
+                ppuMode_ = ly_ < 144 ? 2 : 1;
+                if (ly_ == 144) iflag_ |= 0x01;
+                checkStatInterrupt();
+            }
         }
+        frameOvershoot_ = elapsed - 70224;
     }
 };
 

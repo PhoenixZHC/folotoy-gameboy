@@ -10,6 +10,19 @@
 > with `CHANGELOG.zh_CN.md`. The entries currently under `Unreleased` are pending
 > review for the next release; they are not a finalized release history.
 
+## Game Boy 1.3 — 2026-10-01 (local firmware package)
+
+This summary covers the accumulated changes from the keyboard addition through the 1.3 review fixes.
+
+- Added BLE keyboard controls: W/A/S/D for Up/Left/Down/Right, J/K for A/B, and L/I for Start/Select. Physical keyboard compatibility remains untested.
+- Monochrome games now use a green palette matching the menu.
+- Moved the Nintendo-style animation and chime from power-on to game launch, with improved input handling during the animation.
+- Fixed incorrect game rename/delete operations from outdated management lists, storage error handling, virtual LCD-off behavior, and Bluetooth candidate lists remaining full.
+- Packaged a complete 8 MiB image with Pokemon Red and Super Mario Land; both preinstalled games can be deleted through Game management.
+- Added the firmware version to Settings and corrected audio sample-rate configuration and unsupported HCI setup commands.
+
+Full-image installation at `0x0` overwrites existing games, saves, settings, and pairing data. See the [firmware guide](development/release/gameboy-firmware.md) and [validation record](development/gameboy-validation.md) for installation and testing details.
+
 ## Unreleased
 
 - Added board Start/Select shortcuts for controllers without those buttons: short board OK sends Start and short board Up sends Select during gameplay; long board OK still pauses.

@@ -49,6 +49,21 @@ class PackTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "outside image"):
                 inspect_image(pack([rom])[:-1])
 
+    def test_display_name_does_not_require_renaming_source(self):
+        with tempfile.TemporaryDirectory() as temp:
+            rom = Path(temp) / ("long-source-name-" * 5 + ".gb")
+            original = dummy_rom()
+            rom.write_bytes(original)
+            image = pack([rom], ["口袋妖怪红"])
+            self.assertEqual(inspect_image(image), ["口袋妖怪红"])
+            self.assertEqual(rom.read_bytes(), original)
+            self.assertEqual(image[4096:], original)
+            with self.assertRaisesRegex(ValueError, "one display name"):
+                pack([rom], [])
+            for name in ("", "a" * 32, "bad/name", "bad\\name", "bad\nname", "\U0001f600"):
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "Invalid ROM name"):
+                    pack([rom], [name])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -49,6 +49,22 @@ run_static_checks() {
         -o "${test_dir}/test_gb_input"
     "${test_dir}/test_gb_input"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
+        tests/test_gb_keyboard_hid.c main/gb_input.c \
+        components/bluepad32/parser/uni_hid_parser.c \
+        components/bluepad32/parser/uni_hid_parser_keyboard.c \
+        components/bluepad32/controller/uni_gamepad.c \
+        components/btstack/src/btstack_hid_parser.c components/btstack/src/btstack_util.c \
+        -o "${test_dir}/test_gb_keyboard_hid"
+    "${test_dir}/test_gb_keyboard_hid"
+    for target in ESP32C3 ESP32; do
+        "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
+            -DCONFIG_BLUEPAD32_MAX_DEVICES=1 "-DCONFIG_IDF_TARGET_${target}=1" \
+            -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
+            tests/test_bt_setup.c -o "${test_dir}/test_bt_setup_${target}"
+        "${test_dir}/test_bt_setup_${target}"
+    done
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_gb_name.c main/gb_name.c \
         -o "${test_dir}/test_gb_name"
     "${test_dir}/test_gb_name"
@@ -77,7 +93,7 @@ run_static_checks() {
         -o "${test_dir}/test_gbc_render"
     "${test_dir}/test_gbc_render"
     "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
-        -DMINIGB_APU_AUDIO_FORMAT_S16SYS=1 -DAUDIO_SAMPLE_RATE=14000 \
+        -DMINIGB_APU_AUDIO_FORMAT_S16SYS=1 -DAUDIO_SAMPLE_RATE=16000 \
         -Icomponents/minigb_apu tests/test_gb_audio.c \
         components/minigb_apu/minigb_apu.c -o "${test_dir}/test_gb_audio"
     "${test_dir}/test_gb_audio"

@@ -15,7 +15,7 @@ typedef struct {
     int16_t samples[GB_AUDIO_SAMPLES];
 } audio_block_t;
 
-// APU 和输出统一为 14 kHz，避免生成额外采样后再逐块重采样。
+// APU 和输出统一为 16 kHz，使用 codec 支持的时钟配置且无需逐块重采样。
 // 低帧率仍由调用方按墙钟推进 APU，不改变输出采样率。
 
 static const char *TAG = "gb_audio";

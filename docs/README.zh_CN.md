@@ -5,7 +5,7 @@
 FoloToy AI Passport 是一个开放式可穿戴 AI 硬件，本仓库是这款 AI 硬件的开发基线。它不只展示"板子能运行什么"，还把开发应用所需的**硬件事实、稳定接口、资源边界、参考实现和验收方法**放在同一仓库中。
 
 当前检出目录包含 [Game Boy 固件移植](../README.zh_CN.md)。下方硬件资料描述上游 AI Passport 基线；本目录的演示应用和分区布局已由模拟器固件替换。
-移植的[验证状态](development/gameboy-validation.zh_CN.md)、[来源和许可证记录](development/gameboy-sources.zh_CN.md)及[清洁版 8 MiB 安装与 GitHub 提交说明](development/release/gameboy-firmware.zh_CN.md)另行维护。
+当前本地固件为 **1.3**，支持 BLE 键盘操作、绿色单色游戏画面、每次游戏启动前的动画，以及可选的可删除预装游戏。[更新日志](CHANGELOG.zh_CN.md)、[验收范围](development/gameboy-acceptance.zh_CN.md)、[验证状态](development/gameboy-validation.zh_CN.md)、[来源和许可证记录](development/gameboy-sources.zh_CN.md)及[清洁版／预装版 8 MiB 安装说明](development/release/gameboy-firmware.zh_CN.md)另行维护。实体键盘兼容性尚未实测。
 
 这个仓库的组织方式是：
 

@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
     int pressed_key_index;
+    bool keyboard_page_seen;
 
     // TODO: JX_05 parser should be moved to its own parser... when the Keyboard parser becomes unmaintainable.
     bool using_jx_05;
@@ -148,10 +149,12 @@ void uni_hid_parser_keyboard_init_report(uni_hid_device_t* d) {
     // Reset pressed key index
     keyboard_instance_t* ins = get_keyboard_instance(d);
     ins->pressed_key_index = 0;
+    ins->keyboard_page_seen = false;
 
-    // Reset old state. Each report contains a full-state.
+    // Ordinary keyboards may use separate report IDs for media keys. Keep
+    // their held keyboard keys until a Keyboard/Keypad report arrives.
     uni_controller_t* ctl = &d->controller;
-    memset(ctl, 0, sizeof(*ctl));
+    if (ins->using_jx_05) memset(ctl, 0, sizeof(*ctl));
     ctl->klass = UNI_CONTROLLER_CLASS_KEYBOARD;
 }
 
@@ -171,6 +174,10 @@ void uni_hid_parser_keyboard_parse_usage(uni_hid_device_t* d,
     int idx = ins->pressed_key_index;
     switch (usage_page) {
         case HID_USAGE_PAGE_KEYBOARD_KEYPAD:
+            if (!ins->keyboard_page_seen) {
+                memset(&d->controller.keyboard, 0, sizeof(d->controller.keyboard));
+                ins->keyboard_page_seen = true;
+            }
             if (value) {
                 if (usage < HID_USAGE_KB_LEFT_CONTROL) {
                     if (idx >= UNI_KEYBOARD_PRESSED_KEYS_MAX) {
@@ -195,6 +202,9 @@ void uni_hid_parser_keyboard_parse_usage(uni_hid_device_t* d,
             break;
 
         case HID_USAGE_PAGE_CONSUMER:
+            // Media keys are not Game Boy controls. Do not overwrite the
+            // held letter keys when a separate consumer report arrives.
+            if (!ins->using_jx_05) break;
             if (!value)
                 break;
             // To support TikTok Ring Controller and "5-button keyboard". See:

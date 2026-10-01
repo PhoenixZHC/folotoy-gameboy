@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "btstack_port_esp32.h"
+#include "btstack.h"
 #include "btstack_run_loop.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -19,6 +20,16 @@ static bool s_started;
 static bool s_scan_allowed = true;
 static bool s_scan_update_pending;
 static btstack_context_callback_registration_t s_scan_update;
+static btstack_packet_callback_registration_t s_security_events;
+static btstack_timer_source_t s_passkey_timer;
+static bd_addr_t s_passkey_address;
+
+static void passkey_timeout(btstack_timer_source_t *timer) {
+    (void)timer;
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_discovery_pairing_done(&s_discovery, s_passkey_address, false);
+    taskEXIT_CRITICAL(&s_lock);
+}
 
 // Apply the latest request on the Bluetooth thread. Rechecking connection
 // state here avoids restarting a scan queued just before a controller is ready.
@@ -26,8 +37,26 @@ static void apply_scan_policy(void *context) {
     (void)context;
     taskENTER_CRITICAL(&s_lock);
     bool scan = s_scan_allowed && !s_sample.connected;
+    bool passkey_visible = s_discovery.passkey_visible;
     s_scan_update_pending = false;
     taskEXIT_CRITICAL(&s_lock);
+    if (!passkey_visible)
+        btstack_run_loop_remove_timer(&s_passkey_timer);
+    // A cancelled selection must not finish pairing in the background.
+    for (int i = 0; i < CONFIG_BLUEPAD32_MAX_DEVICES; i++) {
+        uni_hid_device_t *device = uni_hid_device_get_instance_for_idx(i);
+        if (!device || device == s_owner) continue;
+        static const bd_addr_t empty_address = {0};
+        if (memcmp(device->conn.btaddr, empty_address, sizeof(empty_address)) == 0) continue;
+        taskENTER_CRITICAL(&s_lock);
+        bool selected = gamepad_discovery_should_connect(&s_discovery, device->conn.btaddr);
+        taskEXIT_CRITICAL(&s_lock);
+        if (selected) continue;
+        if (gap_get_connection_type(device->conn.handle) == GAP_CONNECTION_INVALID)
+            gap_connect_cancel();
+        uni_hid_device_disconnect(device);
+        uni_hid_device_delete(device);
+    }
     if (scan) uni_bt_start_scanning_and_autoconnect_unsafe();
     else uni_bt_stop_scanning_unsafe();
 }
@@ -63,10 +92,17 @@ gamepad_discovery_t gamepad_discovery_snapshot(void) {
     return copy;
 }
 
+void gamepad_begin_discovery(void) {
+    taskENTER_CRITICAL(&s_lock);
+    if (!s_sample.connected) gamepad_discovery_begin_scan(&s_discovery);
+    taskEXIT_CRITICAL(&s_lock);
+}
+
 bool gamepad_select_candidate(size_t index) {
     taskENTER_CRITICAL(&s_lock);
     bool selected = gamepad_discovery_select(&s_discovery, index);
     taskEXIT_CRITICAL(&s_lock);
+    if (selected) update_scan_policy();
     return selected;
 }
 
@@ -74,6 +110,7 @@ void gamepad_clear_selection(void) {
     taskENTER_CRITICAL(&s_lock);
     gamepad_discovery_clear_selection(&s_discovery);
     taskEXIT_CRITICAL(&s_lock);
+    update_scan_policy();
 }
 
 static void platform_init(int argc, const char **argv) {
@@ -81,9 +118,54 @@ static void platform_init(int argc, const char **argv) {
     (void)argv;
 }
 
+static void security_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
+    (void)channel;
+    (void)size;
+    if (packet_type != HCI_EVENT_PACKET) return;
+    uint8_t event = hci_event_packet_get_type(packet);
+    hci_con_handle_t handle;
+    if (event == SM_EVENT_PASSKEY_DISPLAY_NUMBER)
+        handle = sm_event_passkey_display_number_get_handle(packet);
+    else if (event == SM_EVENT_PASSKEY_DISPLAY_CANCEL)
+        handle = sm_event_passkey_display_cancel_get_handle(packet);
+    else if (event == SM_EVENT_PAIRING_COMPLETE)
+        handle = sm_event_pairing_complete_get_handle(packet);
+    else if (event == SM_EVENT_REENCRYPTION_COMPLETE)
+        handle = sm_event_reencryption_complete_get_handle(packet);
+    else return;
+    uni_hid_device_t *device = uni_hid_device_get_instance_for_connection_handle(handle);
+    if (!device) return;
+    taskENTER_CRITICAL(&s_lock);
+    bool selected = gamepad_discovery_should_connect(&s_discovery, device->conn.btaddr);
+    if (event == SM_EVENT_PASSKEY_DISPLAY_NUMBER) {
+        gamepad_discovery_passkey(&s_discovery, device->conn.btaddr,
+                                 sm_event_passkey_display_number_get_passkey(packet));
+    } else {
+        uint8_t status = event == SM_EVENT_PAIRING_COMPLETE ? sm_event_pairing_complete_get_status(packet) :
+                         event == SM_EVENT_REENCRYPTION_COMPLETE ? sm_event_reencryption_complete_get_status(packet) : 0;
+        gamepad_discovery_pairing_done(&s_discovery, device->conn.btaddr, status == 0);
+    }
+    taskEXIT_CRITICAL(&s_lock);
+    if (selected && event == SM_EVENT_PASSKEY_DISPLAY_NUMBER) {
+        // The upstream 20-second connection timer is too short for typing a PIN.
+        btstack_run_loop_remove_timer(&device->connection_timer);
+        btstack_run_loop_set_timer(&device->connection_timer, 60000);
+        btstack_run_loop_add_timer(&device->connection_timer);
+        memcpy(s_passkey_address, device->conn.btaddr, sizeof(s_passkey_address));
+        btstack_run_loop_remove_timer(&s_passkey_timer);
+        btstack_run_loop_set_timer_handler(&s_passkey_timer, passkey_timeout);
+        btstack_run_loop_set_timer(&s_passkey_timer, 60000);
+        btstack_run_loop_add_timer(&s_passkey_timer);
+    } else if (selected) {
+        btstack_run_loop_remove_timer(&s_passkey_timer);
+    }
+}
+
 static void platform_ready(void) {
+    s_security_events.callback = security_event;
+    sm_add_event_handler(&s_security_events);
     uni_bt_start_scanning_and_autoconnect_unsafe();
-    ESP_LOGI(TAG, "BLE scan started; hold the Xbox 1914 pair button for 3 seconds");
+    ESP_LOGI(TAG, "BLE scan started; put a keyboard or gamepad in pairing mode");
 }
 
 static uni_error_t device_discovered(bd_addr_t addr, const char *name,
@@ -94,9 +176,14 @@ static uni_error_t device_discovered(bd_addr_t addr, const char *name,
     taskENTER_CRITICAL(&s_lock);
     bool candidate = gamepad_discovery_observe(&s_discovery, addr, cod, name);
     bool selected = candidate && gamepad_discovery_should_connect(&s_discovery, addr);
+    if (selected) gamepad_discovery_pairing_done(&s_discovery, addr, true);
     taskEXIT_CRITICAL(&s_lock);
     if (!selected) return UNI_ERROR_IGNORE_DEVICE;
-    ESP_LOGI(TAG, "selected BLE gamepad found (%s)",
+    // Only one selected peripheral connects at a time. Keep the tested
+    // gamepad security policy; allow keyboard peers to request PIN entry.
+    sm_set_io_capabilities((cod & 0x0040) ? IO_CAPABILITY_DISPLAY_ONLY
+                                         : IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
+    ESP_LOGI(TAG, "selected BLE input found (%s)",
              name && name[0] ? name : "unnamed");
     return UNI_ERROR_SUCCESS;
 }
@@ -106,6 +193,11 @@ static void device_connected(uni_hid_device_t *device) {
 }
 
 static void device_disconnected(uni_hid_device_t *device) {
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_discovery_pairing_done(&s_discovery, device->conn.btaddr, false);
+    taskEXIT_CRITICAL(&s_lock);
+    if (memcmp(s_passkey_address, device->conn.btaddr, sizeof(s_passkey_address)) == 0)
+        btstack_run_loop_remove_timer(&s_passkey_timer);
     if (device != s_owner) return;
     s_owner = NULL;
     set_sample((pad_sample_t){0});
@@ -115,6 +207,13 @@ static void device_disconnected(uni_hid_device_t *device) {
 
 static uni_error_t device_ready(uni_hid_device_t *device) {
     if (s_owner && s_owner != device) return UNI_ERROR_IGNORE_DEVICE;
+    taskENTER_CRITICAL(&s_lock);
+    bool selected = gamepad_discovery_should_connect(&s_discovery, device->conn.btaddr);
+    if (selected) gamepad_discovery_pairing_done(&s_discovery, device->conn.btaddr, true);
+    taskEXIT_CRITICAL(&s_lock);
+    if (!selected || (!uni_hid_device_is_gamepad(device) && !uni_hid_device_is_keyboard(device)))
+        return UNI_ERROR_IGNORE_DEVICE;
+    btstack_run_loop_remove_timer(&s_passkey_timer);
     s_owner = device;
     set_sample((pad_sample_t){.connected = true});
     update_scan_policy();
@@ -123,7 +222,13 @@ static uni_error_t device_ready(uni_hid_device_t *device) {
 }
 
 static void controller_data(uni_hid_device_t *device, uni_controller_t *ctl) {
-    if (device != s_owner || ctl->klass != UNI_CONTROLLER_CLASS_GAMEPAD) return;
+    if (device != s_owner) return;
+    if (ctl->klass == UNI_CONTROLLER_CLASS_KEYBOARD) {
+        set_sample(gb_input_keyboard(ctl->keyboard.pressed_keys,
+                                    UNI_KEYBOARD_PRESSED_KEYS_MAX, ctl->keyboard.modifiers));
+        return;
+    }
+    if (ctl->klass != UNI_CONTROLLER_CLASS_GAMEPAD) return;
     const uni_gamepad_t *gp = &ctl->gamepad;
     pad_sample_t next = {
         .connected = true,

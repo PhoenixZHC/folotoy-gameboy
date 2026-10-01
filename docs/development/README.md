@@ -6,6 +6,12 @@
 
 This directory contains AI Passport engineering rules and reusable workflows, grouped by purpose: the AI-assisted development workflow (`ai-guide.md`), engineering conventions (`engineering/`), CI documents (`ci/`), and the release/completion flow (`release/`). Rules should identify their trigger, required action, prohibited action, validation, and exceptions. Hardware facts belong in `docs/hardware-design/`; automatable requirements must also be enforced by tooling or CI.
 
+## Game Boy firmware
+
+- [gameboy-acceptance.md](gameboy-acceptance.md): current 1.3 acceptance limits and historical device results.
+- [gameboy-validation.md](gameboy-validation.md): build, host-test, device-test, and package evidence.
+- [gameboy-sources.md](gameboy-sources.md): third-party sources, licenses, and local adaptations.
+
 ## AI workflow
 
 - [ai-guide.md](ai-guide.md): AI-assisted development workflow.
@@ -27,7 +33,7 @@ This directory contains AI Passport engineering rules and reusable workflows, gr
 
 ## Release
 
-- [gameboy-firmware.md](release/gameboy-firmware.md): clean 8 MiB Game Boy image, data impact, and GitHub handoff.
+- [gameboy-firmware.md](release/gameboy-firmware.md): clean and preloaded 8 MiB Game Boy images, data impact, and GitHub handoff.
 - [publish-to-community.md](release/publish-to-community.md): publishing firmware to the AI Passport community market.
 - [project-completion.md](release/project-completion.md): project completion flow — a menu of optional closing actions.
 - [file-issues.md](release/file-issues.md): filing a suggestion as an upstream GitHub issue.

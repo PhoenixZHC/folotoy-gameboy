@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Color framebuffer indices 0..63 select palettes; 64 is LCD-off white.
+#define GB_PORT_COLOR_BLANK 64
+
 #ifdef __cplusplus
 extern "C" {
 #endif

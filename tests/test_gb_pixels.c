@@ -6,8 +6,10 @@ int main(void) {
     uint8_t frame[GB_FRAME_BYTES] = {0};
     frame[0] = 0xe4;
     for (int x = 0; x < 4; x++) assert(gb_pixel_shade(frame, x, 0) == x);
-    assert(gb_pixel_rgb565(0) == 0xffff);
-    assert(gb_pixel_rgb565(3) == 0);
+    assert(gb_pixel_rgb565(0) == 0x9dc2);
+    assert(gb_pixel_rgb565(1) == 0x8d42);
+    assert(gb_pixel_rgb565(2) == 0x3306);
+    assert(gb_pixel_rgb565(3) == 0x09c2);
     assert(gb_pixel_source_x(239, true) == 159);
     assert(gb_pixel_source_y(215, true) == 143);
     assert(gb_pixel_source_x(159, false) == 159);

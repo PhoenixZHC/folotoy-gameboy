@@ -5,6 +5,7 @@
 #include "bsp_display.h"
 #include "bsp_audio.h"
 #include "esp_log.h"
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -92,6 +93,7 @@ static gb_menu_action_t board_menu_action(button_message_t msg) {
 }
 
 static void settings_loop(void) {
+    const char *version = esp_app_get_description()->version;
     size_t selected = 0;
     bool editing = false, dirty = true;
     gb_menu_input_t pad_input;
@@ -139,12 +141,14 @@ static void settings_loop(void) {
         const char *footer = editing ? "上/下调整 OK保存 长按OK结束"
                                      : "上/下选择 OK确认 长按OK返回";
         if (dirty || now - refreshed > 15000000) {
-            char vol[32], bright[32], sound[32];
+            char vol[32], bright[32], sound[32], version_hint[64];
             snprintf(vol, sizeof(vol), "音量 %u%%", s_volume);
             snprintf(bright, sizeof(bright), "亮度 %u%%", s_brightness);
             snprintf(sound, sizeof(sound), "声音 %s", s_sound_enabled ? "开" : "关");
+            snprintf(version_hint, sizeof(version_hint), "版本 %s%s", version,
+                     editing ? " 调整中" : "");
             const char *items[] = {vol, bright, sound, "返回"};
-            show_ui("设置", editing ? "正在调整" : "设备选项",
+            show_ui("设置", version_hint,
                     items, 4, selected, footer);
             refreshed = now;
             if (dirty) footer_started = now;
@@ -159,7 +163,7 @@ static void settings_loop(void) {
 }
 
 static size_t home_loop(void) {
-    const char *items[] = {"配对手柄", "游戏管理", "设置"};
+    const char *items[] = {"配对键盘或手柄", "游戏管理", "设置"};
     size_t selected = 0;
     bool dirty = true;
     int64_t refreshed = 0;
@@ -174,7 +178,7 @@ static size_t home_loop(void) {
         }
         int64_t now = esp_timer_get_time();
         if (dirty || now - refreshed > 15000000) {
-            show_ui("GB模拟器", gamepad_snapshot().connected ? "手柄已连接" : "请选择操作",
+            show_ui("GB模拟器", gamepad_snapshot().connected ? "输入设备已连接" : "请选择操作",
                     items, 3, selected, "上/下 选择 OK 确认");
             refreshed = now;
             dirty = false;
@@ -275,7 +279,7 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
     const char *hint = battery ? "游戏内存档，重进后读取" : "此游戏无电池存档";
     if (!gb_saves_write(session, hash)) hint = "同步失败，进度仅在内存";
     size_t selected = 0;
-    show_ui(connected ? "游戏暂停" : "手柄断开", hint, items, 5, selected,
+    show_ui(connected ? "游戏暂停" : "输入设备断开", hint, items, 5, selected,
             "上/下选择 OK确认");
     button_message_t msg;
     gb_menu_input_t pad_input;
@@ -296,11 +300,11 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
             else if (action == GB_MENU_DOWN) selected = (selected + 1) % 5;
             else if (action == GB_MENU_BACK) {
                 if (pad.connected) return true;
-                hint = "请重新连接手柄";
+                hint = "请重新连接输入设备";
             } else if (action == GB_MENU_CONFIRM) {
                 if (selected == 0) {
                     if (pad.connected) return true;
-                    hint = "请重新连接手柄";
+                    hint = "请重新连接输入设备";
                 } else if (selected == 1) {
                     if (!battery) hint = "此游戏无电池存档";
                     else if (!gb_port_needs_save(session)) hint = "没有新存档";
@@ -313,7 +317,7 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
                 } else if (selected == 3) {
                     if (!screen_off_loop()) hint = "息屏恢复失败，请重试";
                     else if (gamepad_snapshot().connected) return true;
-                    else hint = "请重新连接手柄";
+                    else hint = "请重新连接输入设备";
                     gb_menu_input_init(&pad_input, gamepad_snapshot());
                 } else {
                     if (gb_saves_write(session, hash)) return false;
@@ -325,7 +329,7 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
         redraw |= now_connected != connected;
         connected = now_connected;
         if (!redraw) continue;
-        show_ui(connected ? "游戏暂停" : "手柄断开",
+        show_ui(connected ? "游戏暂停" : "输入设备断开",
                 selected == 3 ? "任意按键唤醒" : hint, items, 5, selected,
                 "上/下选择 OK确认");
     }
@@ -357,6 +361,7 @@ static game_button_actions_t poll_game_buttons(void) {
 }
 
 static bool pairing_loop(void) {
+    gamepad_begin_discovery();
     size_t selected = 0;
     uint32_t shown_revision = UINT32_MAX;
     bool dirty = true;
@@ -370,6 +375,8 @@ static bool pairing_loop(void) {
             if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) {
                 if (!discovery.selected) return false;
                 gamepad_clear_selection();
+                discovery = gamepad_discovery_snapshot();
+                selected = 0;
                 selected_at_us = 0;
                 connection_slow = false;
                 dirty = true;
@@ -388,7 +395,7 @@ static bool pairing_loop(void) {
         discovery = gamepad_discovery_snapshot();
         if (discovery.selected && selected_at_us == 0) selected_at_us = esp_timer_get_time();
         if (discovery.selected && !connection_slow &&
-            esp_timer_get_time() - selected_at_us >= 25000000) {
+            !discovery.passkey_visible && esp_timer_get_time() - selected_at_us >= 25000000) {
             connection_slow = true;
             dirty = true;
         }
@@ -397,11 +404,21 @@ static bool pairing_loop(void) {
             const char *items[GB_UI_MAX_ITEMS] = {0};
             char choices[GB_UI_MAX_ITEMS][38] = {{0}};
             size_t count = 0, selected_item = 0;
-            const char *hint = "请按手柄配对键";
+            const char *hint = "键盘或手柄开启配对";
             if (discovery.selected) {
-                items[0] = connection_slow ? "连接失败 请重试" : "连接中...";
-                count = 1;
-                hint = "长按OK 重试";
+                if (discovery.passkey_visible) {
+                    snprintf(choices[0], sizeof(choices[0]), "配对码 %06lu",
+                             (unsigned long)discovery.passkey);
+                    items[0] = choices[0];
+                    items[1] = "键盘输入后按Enter";
+                    count = 2;
+                    hint = "长按OK 取消";
+                } else {
+                    items[0] = discovery.pairing_failed ? "配对失败 请重试" :
+                               connection_slow ? "连接较慢 请重试" : "连接中...";
+                    count = 1;
+                    hint = "长按OK 重试";
+                }
             } else if (!discovery.count) {
                 items[0] = "扫描中...";
                 count = 1;
@@ -410,14 +427,16 @@ static bool pairing_loop(void) {
                 selected_item = selected - first;
                 for (size_t i = first; i < discovery.count && count < GB_UI_MAX_ITEMS; i++) {
                     const gamepad_candidate_t *candidate = &discovery.candidates[i];
-                    snprintf(choices[count], sizeof(choices[count]), "%.18s %02X:%02X",
-                             candidate->name[0] ? candidate->name : "手柄",
+                    char short_name[19];
+                    gamepad_copy_name(short_name, sizeof(short_name), candidate->name[0] ? candidate->name :
+                                      candidate->keyboard ? "BLE Keyboard" : "手柄");
+                    snprintf(choices[count], sizeof(choices[count]), "%s %02X:%02X", short_name,
                              candidate->address[4], candidate->address[5]);
                     items[count] = choices[count];
                     count++;
                 }
             }
-            show_ui("配对手柄", hint, items, count, selected_item,
+            show_ui("配对键盘或手柄", hint, items, count, selected_item,
                     "上/下 选择 OK 连接");
             shown_revision = discovery.revision;
             dirty = false;
@@ -433,6 +452,8 @@ static bool prepare_game_screen(void) {
     if (e != ESP_OK) ESP_LOGE(TAG, "game screen: %s", esp_err_to_name(e));
     return e == ESP_OK;
 }
+
+static bool boot_animation(void);
 
 static void run_game(size_t index) {
     const gb_rom_entry_t *entry = gb_storage_entry(index);
@@ -455,6 +476,12 @@ static void run_game(size_t index) {
     if (!gamepad_snapshot().connected && !pause_game(session, entry->sha256, false)) {
         gb_port_destroy(session); return;
     }
+    if (!boot_animation()) {
+        gb_port_destroy(session); show_error("启动动画失败"); return;
+    }
+    // Discard board presses collected while the launch animation was playing.
+    xQueueReset(s_buttons);
+    bool launch_input_released = false;
     bool audio_enabled = s_sound_enabled && s_volume > 0;
     bool color_game = gb_port_is_cgb(session);
     if (audio_enabled && !gb_audio_start(s_volume)) {
@@ -513,7 +540,10 @@ static void run_game(size_t index) {
             audio_blocks = 0;
             continue;
         }
-        gb_keys_t keys = gb_input_map(pad);
+        // Require release before forwarding the launch press or held animation input.
+        if (!pad.any_button && !pad.right && !pad.left && !pad.up && !pad.down &&
+            !pad.a && !pad.b && !pad.view && !pad.menu) launch_input_released = true;
+        gb_keys_t keys = launch_input_released ? gb_input_map(pad) : (gb_keys_t){0};
         keys.start |= board.start;
         keys.select |= board.select;
         gb_port_set_keys(session, port_keys(keys));
@@ -711,13 +741,13 @@ static bool boot_animation(void) {
     if (e != ESP_OK) return false;
     if (s_sound_enabled && s_volume) {
         e = bsp_audio_init_playback();
-        if (e == ESP_OK) e = bsp_audio_set_format(14000, 16, 1);
+        if (e == ESP_OK) e = bsp_audio_set_format(GB_AUDIO_OUTPUT_RATE, 16, 1);
         if (e == ESP_OK) {
             bsp_audio_set_volume(s_volume);
-            int16_t pcm[234];
+            int16_t pcm[GB_AUDIO_SAMPLES];
             // Finish with silence so the complete chime clears the I2S DMA queue.
-            for (uint32_t at = 0; at < 14000; at += 234) {
-                for (unsigned i = 0; i < 234; i++) pcm[i] = gb_boot_sample(at + i);
+            for (uint32_t at = 0; at < GB_AUDIO_OUTPUT_RATE; at += GB_AUDIO_SAMPLES) {
+                for (unsigned i = 0; i < GB_AUDIO_SAMPLES; i++) pcm[i] = gb_boot_sample(at + i);
                 e = bsp_audio_write(pcm, sizeof(pcm));
                 if (e != ESP_OK) break;
                 vTaskDelay(1);
@@ -741,7 +771,6 @@ void app_main(void) {
     if (e != ESP_OK) { startup_error("按键初始化失败"); return; }
     settings_load();
     bsp_display_backlight(s_brightness);
-    if (!boot_animation()) { startup_error("开机动画失败"); return; }
     xQueueReset(s_buttons);
     e = gamepad_start();
     if (e != ESP_OK) { startup_error("蓝牙初始化失败"); return; }

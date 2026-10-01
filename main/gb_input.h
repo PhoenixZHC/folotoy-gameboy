@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 typedef struct {
     bool connected;
@@ -15,6 +17,8 @@ typedef struct {
 } gb_keys_t;
 
 gb_keys_t gb_input_map(pad_sample_t sample);
+// HID Keyboard/Keypad usage IDs, independent of case and host input methods.
+pad_sample_t gb_input_keyboard(const uint8_t *keys, size_t count, uint8_t modifiers);
 
 typedef enum {
     GB_MENU_NONE,

@@ -39,6 +39,10 @@ static esp_err_t page_handler(httpd_req_t *req) {
 }
 
 static esp_err_t list_handler(httpd_req_t *req) {
+    if (gb_storage_needs_reload()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "游戏目录状态未确认，请重启设备后重新读取列表");
+    }
     httpd_resp_set_type(req, "application/json; charset=utf-8");
     char head[160];
     snprintf(head, sizeof(head), "{\"used\":%lu,\"capacity\":%lu,\"available\":%lu,\"games\":[",
@@ -49,6 +53,8 @@ static esp_err_t list_handler(httpd_req_t *req) {
     for (size_t i = 0; i < gb_storage_count(); i++) {
         const gb_rom_entry_t *entry = gb_storage_entry(i);
         if (!entry) continue;
+        char token[GB_STORAGE_TOKEN_BYTES];
+        if (!gb_storage_token(i, token)) return ESP_FAIL;
         char escaped[sizeof(entry->name) * 6 + 1];
         size_t used = 0;
         for (size_t j = 0; entry->name[j] && j < sizeof(entry->name); j++) {
@@ -61,9 +67,9 @@ static esp_err_t list_handler(httpd_req_t *req) {
             } else escaped[used++] = c;
         }
         escaped[used] = 0;
-        char item[sizeof(escaped) + 64];
-        snprintf(item, sizeof(item), "%s{\"name\":\"%s\",\"size\":%lu}",
-                 i ? "," : "", escaped, (unsigned long)entry->size);
+        char item[sizeof(escaped) + GB_STORAGE_TOKEN_BYTES + 80];
+        snprintf(item, sizeof(item), "%s{\"name\":\"%s\",\"size\":%lu,\"token\":\"%s\"}",
+                 i ? "," : "", escaped, (unsigned long)entry->size, token);
         httpd_resp_sendstr_chunk(req, item);
     }
     httpd_resp_sendstr_chunk(req, "]}");
@@ -100,6 +106,10 @@ static esp_err_t upload_handler(httpd_req_t *req) {
         return httpd_resp_sendstr(req, "文件大小或名称无效");
     }
     bool ok = gb_storage_upload(name, req->content_len, receive_chunk, req);
+    if (gb_storage_needs_reload()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "游戏目录状态未确认，请重启设备后核对上传结果");
+    }
     if (!ok) httpd_resp_set_status(req, "400 Bad Request");
     return httpd_resp_sendstr(req, ok ? "上传成功" : "上传失败：格式、容量或名称无效，名称不能重复");
 }
@@ -109,18 +119,28 @@ static esp_err_t rename_handler(httpd_req_t *req) {
         httpd_resp_set_status(req, "403 Forbidden");
         return httpd_resp_sendstr(req, "拒绝跨站请求");
     }
-    char query[128], id_text[16], encoded[96], name[32];
+    char query[192], token[GB_STORAGE_TOKEN_BYTES], encoded[96], name[32];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
-        httpd_query_key_value(query, "id", id_text, sizeof(id_text)) != ESP_OK ||
+        httpd_query_key_value(query, "token", token, sizeof(token)) != ESP_OK ||
         httpd_query_key_value(query, "name", encoded, sizeof(encoded)) != ESP_OK ||
         !gb_name_url_decode(encoded, name, sizeof(name))) {
         httpd_resp_set_status(req, "400 Bad Request");
         return httpd_resp_sendstr(req, "名称无效：最多 31 字节，约 10 个汉字");
     }
-    char *end;
-    unsigned long index = strtoul(id_text, &end, 10);
-    if (!id_text[0] || *end || index >= gb_storage_count() ||
-        !gb_storage_rename(index, name)) {
+    if (gb_storage_needs_reload()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "游戏目录状态未确认，请重启设备后重新读取列表");
+    }
+    size_t index;
+    if (!gb_storage_resolve_token(token, &index)) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return httpd_resp_sendstr(req, "游戏列表已变化，请刷新后重试");
+    }
+    if (!gb_storage_rename(index, name)) {
+        if (gb_storage_needs_reload()) {
+            httpd_resp_set_status(req, "503 Service Unavailable");
+            return httpd_resp_sendstr(req, "游戏目录状态未确认，请重启设备后核对改名结果");
+        }
         httpd_resp_set_status(req, "400 Bad Request");
         return httpd_resp_sendstr(req, "重命名失败：名称可能重复");
     }
@@ -132,19 +152,22 @@ static esp_err_t delete_handler(httpd_req_t *req) {
         httpd_resp_set_status(req, "403 Forbidden");
         return httpd_resp_sendstr(req, "拒绝跨站请求");
     }
-    char query[32], id_text[16];
+    char query[96], token[GB_STORAGE_TOKEN_BYTES];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
-        httpd_query_key_value(query, "id", id_text, sizeof(id_text)) != ESP_OK) {
+        httpd_query_key_value(query, "token", token, sizeof(token)) != ESP_OK) {
         httpd_resp_set_status(req, "400 Bad Request");
-        return httpd_resp_sendstr(req, "无效编号");
+        return httpd_resp_sendstr(req, "缺少有效的游戏标识，请刷新列表");
     }
-    char *end;
-    unsigned long index = strtoul(id_text, &end, 10);
-    const gb_rom_entry_t *entry = index < gb_storage_count() ? gb_storage_entry(index) : NULL;
-    if (!id_text[0] || *end || !entry) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        return httpd_resp_sendstr(req, "无效游戏编号");
+    if (gb_storage_needs_reload()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "游戏目录状态未确认，请重启设备后重新读取列表");
     }
+    size_t index;
+    if (!gb_storage_resolve_token(token, &index)) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return httpd_resp_sendstr(req, "游戏列表已变化，请刷新后重试");
+    }
+    const gb_rom_entry_t *entry = gb_storage_entry(index);
     uint8_t hash[32];
     memcpy(hash, entry->sha256, sizeof(hash));
     bool shared_save = false;
@@ -157,6 +180,10 @@ static esp_err_t delete_handler(httpd_req_t *req) {
         return httpd_resp_sendstr(req, "存档空间不可用，游戏未删除");
     }
     if (!gb_storage_delete(index)) {
+        if (gb_storage_needs_reload()) {
+            httpd_resp_set_status(req, "503 Service Unavailable");
+            return httpd_resp_sendstr(req, "游戏目录状态未确认，存档未清理；请重启设备后核对删除结果");
+        }
         httpd_resp_set_status(req, "500 Internal Server Error");
         return httpd_resp_sendstr(req, "游戏目录写入失败，游戏未删除");
     }

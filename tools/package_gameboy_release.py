@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or verify a public, factory-installable 8 MiB Game Boy image."""
+"""Build or verify an 8 MiB Game Boy image, optionally with local preinstalled ROMs."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from pack_roms import inspect_image, pack
 from verify_firmware import (
     FLASH_SIZE,
     REQUIRED_IMAGES,
@@ -28,6 +29,9 @@ EXPECTED_PARTITIONS = (
     ("saves", 1, 0x82, 0x710000, 0xF0000),
 )
 DEFAULT_OUTPUT = Path("artifacts/releases/FoloToy-GameBoy-8MB-clean.bin")
+PRELOADED_OUTPUT = Path("artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin")
+ROM_OFFSET = 0x310000
+ROM_DATA_SIZE = 0x400000 - 2 * 4096
 
 
 def sha256(data: bytes) -> str:
@@ -86,16 +90,28 @@ def inputs(build_dir: Path, project_root: Path) -> tuple[dict[str, int], dict[st
     return offsets, images
 
 
-def expected_image(offsets: dict[str, int], images: dict[str, bytes]) -> bytes:
+def validate_rom_image(rom_image: bytes) -> list[str]:
+    names = inspect_image(rom_image)
+    if len(rom_image) > ROM_DATA_SIZE:
+        raise ValueError("preinstalled ROM overlaps the two writable directory sectors")
+    return names
+
+
+def expected_image(offsets: dict[str, int], images: dict[str, bytes],
+                   rom_image: bytes | None = None) -> bytes:
     image = bytearray(b"\xff" * FLASH_SIZE)
     for name in REQUIRED_IMAGES:
         offset = offsets[name]
         image[offset:offset + len(images[name])] = images[name]
     image[0x710000:0x800000] = images["saves.bin"]
+    if rom_image is not None:
+        validate_rom_image(rom_image)
+        image[ROM_OFFSET:ROM_OFFSET + len(rom_image)] = rom_image
     return bytes(image)
 
 
-def validate(image: bytes, build_dir: Path, offsets: dict[str, int], images: dict[str, bytes]) -> str:
+def validate(image: bytes, build_dir: Path, offsets: dict[str, int], images: dict[str, bytes],
+             rom_image: bytes | None = None) -> str:
     if len(image) != FLASH_SIZE:
         raise ValueError(f"release image must be exactly {FLASH_SIZE} bytes")
     for name in REQUIRED_IMAGES:
@@ -103,7 +119,7 @@ def validate(image: bytes, build_dir: Path, offsets: dict[str, int], images: dic
         if image[offset:offset + len(images[name])] != images[name]:
             raise ValueError(f"release image differs from {name}")
     verify_firmware_layout(image, build_dir, 0x8000, 0x10000)
-    if image != expected_image(offsets, images):
+    if image != expected_image(offsets, images, rom_image):
         raise ValueError("release image contains unexpected bytes, ROMs, or user data")
     return sha256(image)
 
@@ -111,19 +127,29 @@ def validate(image: bytes, build_dir: Path, offsets: dict[str, int], images: dic
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, default=Path("build"))
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--output", type=Path, help="output image; defaults to clean/preloaded filename")
+    parser.add_argument("--rom", type=Path, action="append", help="local ROM to preinstall; repeat for multiple games")
+    parser.add_argument("--rom-name", action="append", help="game-list name (UTF-8, at most 31 bytes); provide one per --rom, in order")
     parser.add_argument("--verify", action="store_true", help="verify an existing release image")
     args = parser.parse_args()
+    if args.rom_name is not None and args.rom is None:
+        parser.error("--rom-name requires --rom")
+    if args.rom_name is not None and len(args.rom_name) != len(args.rom):
+        parser.error("provide one --rom-name per --rom, in the same order")
     project_root = Path(__file__).resolve().parent.parent
     build_dir = args.build_dir.resolve()
-    output = args.output.resolve()
+    output = (args.output or (PRELOADED_OUTPUT if args.rom else DEFAULT_OUTPUT)).resolve()
     try:
+        rom_image = None
+        if args.rom:
+            rom_image = pack(args.rom, args.rom_name)
+            validate_rom_image(rom_image)
         offsets, images = inputs(build_dir, project_root)
         if args.verify:
             image = output.read_bytes()
         else:
-            image = expected_image(offsets, images)
-        digest = validate(image, build_dir, offsets, images)
+            image = expected_image(offsets, images, rom_image)
+        digest = validate(image, build_dir, offsets, images, rom_image)
         checksum_path = output.with_suffix(output.suffix + ".sha256")
         checksum_line = f"{digest}  {output.name}\n"
         if args.verify and checksum_path.read_text(encoding="ascii") != checksum_line:
@@ -140,7 +166,10 @@ def main() -> int:
             finally:
                 temporary.unlink(missing_ok=True)
             checksum_path.write_text(checksum_line, encoding="ascii")
-        print(f"8 MiB clean release: PASS ({len(image)} bytes, SHA-256 {digest})")
+        kind = "preloaded" if rom_image is not None else "clean"
+        print(f"8 MiB {kind} release: PASS ({len(image)} bytes, SHA-256 {digest})")
+        if rom_image is not None:
+            print(f"Preinstalled games: {', '.join(inspect_image(rom_image))}")
         print(f"Image: {output}")
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError) as error:

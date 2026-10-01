@@ -3,13 +3,13 @@
 #include "gb_frame_pacing.h"
 
 int main(void) {
-    assert(gb_audio_blocks_due(16743, 0) == 1);
+    assert(gb_audio_blocks_due(16687, 0) == 1);
     assert(gb_audio_blocks_due(33333, 0) == 2);
     assert(gb_audio_blocks_due(50000, 0) == 3);
     assert(gb_audio_blocks_due(100000, 0) == 4);
     assert(gb_audio_blocks_due(50000, 3) == 0);
-    assert(gb_audio_resampled_count(1) == 234);
-    assert(gb_audio_resampled_count(2) == 234);
+    assert(gb_audio_resampled_count(1) == 267);
+    assert(gb_audio_resampled_count(2) == 267);
     for (unsigned fps = 20; fps <= 60; fps += 10) {
         uint64_t period_us = 1000000u / fps;
         uint64_t blocks = 0;

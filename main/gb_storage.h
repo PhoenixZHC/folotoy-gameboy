@@ -6,6 +6,7 @@
 #include "gb_port.h"
 
 #define GB_STORAGE_MAX_ROMS 16
+#define GB_STORAGE_TOKEN_BYTES 65
 
 typedef struct {
     char name[32];
@@ -16,6 +17,11 @@ typedef struct {
 
 bool gb_storage_init(void);
 bool gb_storage_catalog_trusted(void);
+bool gb_storage_needs_reload(void);
+// Tokens bind a row to the committed catalog generation and complete entry.
+// Resolve immediately before mutation; storage access must remain serialized.
+bool gb_storage_token(size_t index, char out[GB_STORAGE_TOKEN_BYTES]);
+bool gb_storage_resolve_token(const char *token, size_t *index);
 size_t gb_storage_count(void);
 const gb_rom_entry_t *gb_storage_entry(size_t index);
 bool gb_storage_open(size_t index, gb_rom_source_t *out);
