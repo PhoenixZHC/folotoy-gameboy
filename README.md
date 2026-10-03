@@ -12,13 +12,13 @@ The device's home, pairing, game list, management, settings, pause and error scr
 
 The 8 MB layout is NVS at `0x9000` (24 KiB), PHY at `0xf000` (4 KiB), one game app at `0x10000` (3 MiB), ROMs at `0x310000` (4 MiB), and SPIFFS saves at `0x710000` (960 KiB). There is no official firmware, OTA, or recovery partition. Installing this table replaces the old layout. The initial saves image must be written only on first installation because writing it again destroys existing saves. The [clean 8 MiB release image and installation guide](docs/development/release/gameboy-firmware.md) cover blank-device installation. The image contains no games, saves, settings, or controller keys; do not use it to update an already configured device.
 
-An optional [preloaded first-install image](docs/development/release/gameboy-firmware.md#optional-preinstalled-games) can include local ROMs. They use the same writable catalog as uploaded games: rename/delete them in Game management, reuse freed space, and keep deletions across restarts. The local 1.3 image includes the user-supplied Chinese Pokemon Red and Super Mario Land; the default clean/CI image remains empty. Reinstalling a full image overwrites existing games, saves, settings and bonds.
+An optional [preloaded first-install image](docs/development/release/gameboy-firmware.md#optional-preinstalled-games) can include local ROMs. They use the same writable catalog as uploaded games: rename/delete them in Game management, reuse freed space, and keep deletions across restarts. The local 1.4 image includes the user-supplied Chinese Pokemon Red and Super Mario Land; the default clean/CI image remains empty. Reinstalling a full image overwrites existing games, saves, settings and bonds.
 
 Game management rejects delete/rename requests from an outdated list and refreshes the page before the user tries again. If a directory write cannot be confirmed, management asks for a device restart to check the result; further changes and game launches are blocked until the directory is read successfully. Existing saves are retained while the result is uncertain.
 
 ## Build and prepare images
 
-The current local package is `artifacts/releases/FoloToy-GameBoy-1.3-full.bin` (8 MiB), with an adjacent `.bin.sha256` checksum. It contains the repaired 1.3 application and both preinstalled games. See the [bilingual changelog](docs/CHANGELOG.md) and [validation record](docs/development/gameboy-validation.md) for this build's results and remaining device checks. Generated firmware and ROMs are excluded from Git.
+The current local package is `artifacts/releases/FoloToy-GameBoy-1.4-full.bin` (8 MiB), with an adjacent `.bin.sha256` checksum. It contains the repaired 1.4 application and both preinstalled games. See the [bilingual changelog](docs/CHANGELOG.md) and [validation record](docs/development/gameboy-validation.md) for this build's results and remaining device checks. Generated firmware and ROMs are excluded from Git.
 
 Activate ESP-IDF 5.5.3 in PowerShell, then run `idf.py --version` and `idf.py build`. The resulting files are `build/bootloader/bootloader.bin`, `build/partition_table/partition-table.bin`, `build/FoloToy-AI-Passport.bin`, and `build/saves.bin`. `idf.py flash` does not write the saves image. Use legally obtained DMG-compatible `.gb` files:
 
@@ -35,13 +35,15 @@ On a **first installation only**, after reviewing the device and data impact, `i
 
 ## Controls and boundaries
 
-Settings displays the firmware version in its bottom information row, including while adjusting an option. The current version is **1.3**, incremented from 1.2 for the green gameplay palette and per-game launch animation. The single source is `PROJECT_VER` in the root `CMakeLists.txt`; the screen reads the built application descriptor, keeping it aligned with startup logs. This version assignment does not publish a release or establish keyboard hardware compatibility.
+Settings displays the firmware version in its bottom information row, including while adjusting an option. The current version is **1.4**, incremented from 1.3 for the BLE discovery fixes. The single source is `PROJECT_VER` in the root `CMakeLists.txt`; the screen reads the built application descriptor, keeping it aligned with startup logs. This version assignment does not publish a release or establish controller/keyboard hardware compatibility.
+
+Controller model and transport limits are documented in the [reported-controller protocol table](docs/development/gameboy-sources.md#reported-controller-protocols). The four reported models have not been physically tested with 1.4; the Ultimate 2C name covers different Bluetooth transports.
 
 ### Bluetooth keyboards
 
 Each scan lists up to eight candidates. If the desired device is missing, leave and reopen pairing to refresh the list, or cancel the current selection with a long OK press. A selected pairing/reconnection target is retained until explicitly cancelled; refreshing does not erase bonds.
 
-Select **Pair keyboard or controller**, put the keyboard in Bluetooth pairing mode, select its name with the board keys, and press OK. Standard BLE HID keyboards advertising the keyboard appearance are accepted without a brand/name filter; existing gamepad filtering and controls are retained. ESP32-C3 does not support Bluetooth Classic or USB/2.4 GHz dongles. A Bluetooth version label alone does not establish compatibility. Only one input device is active at a time.
+Select **Pair keyboard or controller**, put the keyboard in Bluetooth pairing mode, select its name with the board keys, and press OK. Keyboard, Gamepad and Joystick candidates are accepted without a brand/name filter. Devices without a specific appearance can also appear when they advertise the HID service (0x1812); unnamed candidates of this kind display **BLE HID**. After selection, the report descriptor must identify a keyboard, gamepad or joystick before input is accepted. Names, appearance and HID service information split across advertising and scan-response packets are merged by address and address type. The bounded cache expires after five seconds of inactivity and is cleared when scanning is stopped. Discovery does not establish compatibility with a particular controller. ESP32-C3 does not support Bluetooth Classic or USB/2.4 GHz dongles. A Bluetooth version label alone does not establish compatibility. Only one input device is active at a time.
 
 | Keyboard key | Game Boy control |
 | --- | --- |

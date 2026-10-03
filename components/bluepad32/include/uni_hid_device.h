@@ -58,6 +58,8 @@ struct uni_hid_device_s {
 
     // Channels
     uint16_t hids_cid;  // BLE only
+    bool ble_hid_service_filter;
+    uint8_t ble_hid_service_index; // UINT8_MAX until a UUID-only candidate is classified.
 
     // TODO: Create a union of gamepad/mouse/keyboard structs
     // At the moment "mouse" reuses gamepad struct, but it is a hack.
@@ -147,6 +149,8 @@ bool uni_hid_device_is_cod_supported(uint32_t cod);
 // @param rssi: Received Signal Strength Indicator (RSSI) measured in dBms. The higher (255) the better.
 // @returns UNI_ERROR_SUCCESS if a connection to the device should be established.
 uni_error_t uni_hid_device_on_device_discovered(bd_addr_t addr, const char* name, uint16_t cod, uint8_t rssi);
+// Only for BLE advertisements with an explicit HID service UUID; report-map validation is required.
+uni_error_t uni_hid_device_on_ble_hid_discovered(bd_addr_t addr, const char* name, uint8_t rssi);
 
 void uni_hid_device_set_hid_descriptor(uni_hid_device_t* d, const uint8_t* descriptor, int len);
 bool uni_hid_device_has_hid_descriptor(const uni_hid_device_t* d);

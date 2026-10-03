@@ -18,14 +18,14 @@ Get-FileHash -Algorithm SHA256 -LiteralPath 'artifacts\releases\FoloToy-GameBoy-
 
 ## 可选预装游戏
 
-当前本地 1.3 固件包为 `artifacts/releases/FoloToy-GameBoy-1.3-full.bin`，同目录提供 `.bin.sha256` 文件。它使用 `build/review-fixes-1.3` 中已修复的应用，与 COM14 本次应用更新一致，并包含用户提供的两款游戏。改动与验证范围见 [1.3 更新日志](../../CHANGELOG.zh_CN.md)。此固件包尚未公开发布。
+当前本地 1.4 固件包为 `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`，同目录提供 `.bin.sha256` 文件。它使用 `build/ble-discovery-fixes` 中含 BLE 发现修复并重建为 1.4 的应用，包含用户提供的两款游戏。COM14 的启动检查使用的是此前包含相同 BLE 修复的 1.3 清洁版；1.4 预装镜像尚未烧录或公开发布。见 [1.4 更新日志](../../CHANGELOG.zh_CN.md)及[验证记录](../gameboy-validation.zh_CN.md)。
 
 通过重复的 `--rom` 参数，将本地游戏放入普通可写 ROM 分区。原文件名过长时，按相同顺序为每个 ROM 指定一个 `--rom-name`（各不超过 31 个 UTF-8 字节）；不改名、不修改源文件。不指定 `--output` 时，预装模式生成 `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`；不传 `--rom` 仍生成 CI 使用的无游戏清洁版。
 
 ```powershell
 $redRom = 'E:\BaiduNetdiskDownload\GB ROM\口袋妖怪红(精灵宝可梦红) (简)(修正版+完美LOGO)(sss888+RickyL1213+fciq)(8Mb).gb'
 $marioRom = 'E:\BaiduNetdiskDownload\GB ROM\超级马里奥大陆(简)(v2.0)(星夜之幻)(0.5Mb).gb'
-$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/review-fixes-1.3', '--rom', $redRom, '--rom-name', '口袋妖怪红', '--rom', $marioRom, '--rom-name', '超级马里奥大陆', '--output', 'artifacts/releases/FoloToy-GameBoy-1.3-full.bin')
+$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/ble-discovery-fixes', '--rom', $redRom, '--rom-name', '口袋妖怪红', '--rom', $marioRom, '--rom-name', '超级马里奥大陆', '--output', 'artifacts/releases/FoloToy-GameBoy-1.4-full.bin')
 & python.exe @packageArgs
 & python.exe @packageArgs --verify
 ```

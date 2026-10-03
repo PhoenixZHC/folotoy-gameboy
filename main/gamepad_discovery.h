@@ -10,6 +10,7 @@ typedef struct {
     uint8_t address[6];
     char name[32];
     bool keyboard;
+    bool type_pending;
 } gamepad_candidate_t;
 
 typedef struct {
@@ -23,7 +24,7 @@ typedef struct {
     uint32_t revision;
 } gamepad_discovery_t;
 
-// Collect existing Xbox/unnamed gamepads and BLE keyboards of any brand.
+// Collect gamepads, joysticks, keyboards, and BLE HID service probes of any brand.
 bool gamepad_discovery_observe(gamepad_discovery_t *state,
                               const uint8_t address[6], uint16_t cod,
                               const char *name);

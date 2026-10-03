@@ -44,6 +44,14 @@ run_static_checks() {
         tests/test_gamepad_discovery.c main/gamepad_discovery.c \
         -o "${test_dir}/test_gamepad_discovery"
     "${test_dir}/test_gamepad_discovery"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain -Icomponents/bluepad32/include \
+        tests/test_bt_le_advertisement.c components/bluepad32/bt/uni_bt_le_advertisement.c \
+        main/gamepad_discovery.c -o "${test_dir}/test_bt_le_advertisement"
+    "${test_dir}/test_bt_le_advertisement"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Icomponents/bluepad32/include \
+        tests/test_bt_le_hid.c components/bluepad32/bt/uni_bt_le_hid.c \
+        -o "${test_dir}/test_bt_le_hid"
+    "${test_dir}/test_bt_le_hid"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_gb_input.c main/gb_input.c \
         -o "${test_dir}/test_gb_input"

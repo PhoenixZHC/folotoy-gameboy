@@ -67,6 +67,8 @@
 
 #include "bt/uni_bt_conn.h"
 #include "bt/uni_bt_defines.h"
+#include "bt/uni_bt_le_advertisement.h"
+#include "bt/uni_bt_le_hid.h"
 #include "parser/uni_hid_parser.h"
 #include "uni_common.h"
 #include "uni_config.h"
@@ -76,6 +78,7 @@
 
 static bool is_scanning;
 static bool ble_enabled;
+static uni_bt_le_adv_cache_t advertisement_cache;
 
 // Temporal space for SDP in BLE
 static uint8_t hid_descriptor_storage[HID_MAX_DESCRIPTOR_LEN * CONFIG_BLUEPAD32_MAX_DEVICES];
@@ -121,92 +124,6 @@ static void hog_disconnect(hci_con_handle_t con_handle) {
     resume_scanning_hint();
 }
 
-static void get_advertisement_data(const uint8_t* adv_data, uint8_t adv_size, uint16_t* appearance, char* name) {
-    ad_context_t context;
-
-    for (ad_iterator_init(&context, adv_size, (uint8_t*)adv_data); ad_iterator_has_more(&context);
-         ad_iterator_next(&context)) {
-        uint8_t data_type = ad_iterator_get_data_type(&context);
-        uint8_t size = ad_iterator_get_data_len(&context);
-        const uint8_t* data = ad_iterator_get_data(&context);
-
-        int i;
-        // Assigned Numbers GAP
-
-        switch (data_type) {
-            case BLUETOOTH_DATA_TYPE_FLAGS:
-                break;
-            case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_LIST_OF_16_BIT_SERVICE_SOLICITATION_UUIDS:
-                break;
-            case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_32_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_32_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_LIST_OF_32_BIT_SERVICE_SOLICITATION_UUIDS:
-                break;
-            case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_LIST_OF_128_BIT_SERVICE_SOLICITATION_UUIDS:
-                break;
-            case BLUETOOTH_DATA_TYPE_SHORTENED_LOCAL_NAME:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME:
-                for (i = 0; i < size; i++) {
-                    name[i] = data[i];
-                }
-                name[size] = 0;
-                break;
-            case BLUETOOTH_DATA_TYPE_TX_POWER_LEVEL:
-                break;
-            case BLUETOOTH_DATA_TYPE_SLAVE_CONNECTION_INTERVAL_RANGE:
-                break;
-            case BLUETOOTH_DATA_TYPE_SERVICE_DATA:
-                break;
-            case BLUETOOTH_DATA_TYPE_PUBLIC_TARGET_ADDRESS:
-            case BLUETOOTH_DATA_TYPE_RANDOM_TARGET_ADDRESS:
-                break;
-            case BLUETOOTH_DATA_TYPE_APPEARANCE:
-                // https://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.gap.appearance.xml
-                *appearance = little_endian_read_16(data, 0);
-                break;
-            case BLUETOOTH_DATA_TYPE_ADVERTISING_INTERVAL:
-                break;
-            case BLUETOOTH_DATA_TYPE_3D_INFORMATION_DATA:
-                break;
-            case BLUETOOTH_DATA_TYPE_MANUFACTURER_SPECIFIC_DATA:  // Manufacturer Specific Data
-                break;
-            case BLUETOOTH_DATA_TYPE_CLASS_OF_DEVICE:
-                logi("class of device: %#x\n", little_endian_read_16(data, 0));
-                break;
-            case BLUETOOTH_DATA_TYPE_SIMPLE_PAIRING_HASH_C:
-            case BLUETOOTH_DATA_TYPE_SIMPLE_PAIRING_RANDOMIZER_R:
-            case BLUETOOTH_DATA_TYPE_DEVICE_ID:
-                logi("device id: %#x\n", little_endian_read_16(data, 0));
-                break;
-            case BLUETOOTH_DATA_TYPE_LE_BLUETOOTH_DEVICE_ADDRESS:
-            case BLUETOOTH_DATA_TYPE_MESH_BEACON:
-            case BLUETOOTH_DATA_TYPE_MESH_MESSAGE:
-                // Safely ignore these messages
-                break;
-            case BLUETOOTH_DATA_TYPE_SECURITY_MANAGER_OUT_OF_BAND_FLAGS:
-                // fall-through
-            default:
-                logi("Advertising Data Type 0x%2x not handled yet\n", data_type);
-                break;
-        }
-    }
-}
-
-static void adv_event_get_data(const uint8_t* packet, uint16_t* appearance, char* name) {
-    const uint8_t* ad_data;
-    uint16_t ad_len;
-
-    ad_data = gap_event_advertising_report_get_data(packet);
-    ad_len = gap_event_advertising_report_get_data_length(packet);
-
-    // if (!ad_data_contains_uuid16(ad_len, ad_data, ORG_BLUETOOTH_SERVICE_HUMAN_INTERFACE_DEVICE))
-    get_advertisement_data(ad_data, ad_len, appearance, name);
-}
-
 static void parse_report(const uint8_t* packet, uint16_t size) {
     uint16_t service_index;
     uint16_t hids_cid;
@@ -226,6 +143,9 @@ static void parse_report(const uint8_t* packet, uint16_t size) {
         loge("BLE parser report: Invalid device for hids_cid=%d\n", hids_cid);
         return;
     }
+    if (device->ble_hid_service_filter &&
+        (device->ble_hid_service_index == UINT8_MAX || service_index != device->ble_hid_service_index))
+        return;
 
     // FIXME: Copying the HID descriptor should be done at setup time since some device, like Xbox requires it
     // to set the correct parser.
@@ -293,6 +213,26 @@ static void uni_hids_client_packet_handler(uint8_t packet_type, uint16_t channel
                         logi("Client notifications enabled for for hids_cid=%d\n", hids_cid);
 #endif
 
+                    if (device->ble_hid_service_filter) {
+                        uint8_t count = gattservice_subevent_hid_service_connected_get_num_instances(packet);
+                        for (uint8_t i = 0; i < count; i++) {
+                            const uint8_t* map = hids_client_descriptor_storage_get_descriptor_data(hids_cid, i);
+                            uint16_t len = hids_client_descriptor_storage_get_descriptor_len(hids_cid, i);
+                            if (len > HID_MAX_DESCRIPTOR_LEN) continue;
+                            uint16_t cod = uni_bt_le_hid_cod(map, len);
+                            if (!cod) continue;
+                            uni_hid_device_set_cod(device, cod);
+                            uni_hid_device_set_hid_descriptor(device, map, len);
+                            device->ble_hid_service_index = i;
+                            break;
+                        }
+                        if (device->ble_hid_service_index == UINT8_MAX) {
+                            loge("HID service has no supported gamepad/joystick/keyboard report map\n");
+                            uni_hid_device_disconnect(device);
+                            uni_hid_device_delete(device);
+                            break;
+                        }
+                    }
                     uni_hid_device_guess_controller_type_from_pid_vid(device);
                     uni_hid_device_connect(device);
                     uni_hid_device_set_ready(device);
@@ -753,10 +693,7 @@ void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t s
     uint16_t appearance;
     uint16_t cod;
     uint8_t rssi;
-    char name[64];
-
-    appearance = 0;
-    name[0] = 0;
+    const char* name;
 
     ARG_UNUSED(size);
 
@@ -766,34 +703,25 @@ void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t s
         return;
     }
 
-    adv_event_get_data(packet, &appearance, name);
-    if (appearance != UNI_BT_HID_APPEARANCE_GAMEPAD && appearance != UNI_BT_HID_APPEARANCE_JOYSTICK &&
-        appearance != UNI_BT_HID_APPEARANCE_MOUSE && appearance != UNI_BT_HID_APPEARANCE_KEYBOARD) {
+    addr_type = gap_event_advertising_report_get_address_type(packet);
+    const uni_bt_le_adv_entry_t* advertisement = uni_bt_le_adv_observe(
+        &advertisement_cache, addr, addr_type,
+        gap_event_advertising_report_get_data(packet),
+        gap_event_advertising_report_get_data_length(packet), btstack_run_loop_get_time_ms());
+    if (!advertisement) {
+        logd("Ignoring malformed BLE advertisement\n");
+        return;
+    }
+    appearance = advertisement->appearance;
+    name = advertisement->name;
+    cod = uni_bt_le_adv_cod(advertisement);
+    if (!cod) {
         // Don't log it. There too many devices advertising themselves.
         if (appearance != 0 || strlen(name) != 0)
             logd("Not a HID controller, appearance: %#x, name =%s\n", appearance, name);
         return;
     }
 
-    switch (appearance) {
-        case UNI_BT_HID_APPEARANCE_MOUSE:
-            cod = UNI_BT_COD_MAJOR_PERIPHERAL | UNI_BT_COD_MINOR_MICE;
-            break;
-        case UNI_BT_HID_APPEARANCE_JOYSTICK:
-            cod = UNI_BT_COD_MAJOR_PERIPHERAL | UNI_BT_COD_MINOR_JOYSTICK;
-            break;
-        case UNI_BT_HID_APPEARANCE_GAMEPAD:
-            cod = UNI_BT_COD_MAJOR_PERIPHERAL | UNI_BT_COD_MINOR_GAMEPAD;
-            break;
-        case UNI_BT_HID_APPEARANCE_KEYBOARD:
-            cod = UNI_BT_COD_MAJOR_PERIPHERAL | UNI_BT_COD_MINOR_KEYBOARD;
-            break;
-        default:
-            cod = 0;
-            break;
-    }
-
-    addr_type = gap_event_advertising_report_get_address_type(packet);
     rssi = gap_event_advertising_report_get_rssi(packet);
 
     logi("Device found: %s (%s)", bd_addr_to_str(addr), addr_type == 0 ? "public" : "random");
@@ -801,7 +729,10 @@ void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t s
     logi(", rssi %u dBm", rssi);
     logi(", name '%s'\n", name);
 
-    if (uni_hid_device_on_device_discovered(addr, name, cod, rssi) != UNI_ERROR_SUCCESS)
+    bool hid_probe = cod == UNI_BT_COD_MAJOR_PERIPHERAL;
+    uni_error_t admission = hid_probe ? uni_hid_device_on_ble_hid_discovered(addr, name, rssi)
+                                     : uni_hid_device_on_device_discovered(addr, name, cod, rssi);
+    if (admission != UNI_ERROR_SUCCESS)
         return;
 
     uni_hid_device_t* d = uni_hid_device_create(addr);
@@ -816,6 +747,8 @@ void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t s
     uni_bt_conn_set_protocol(&d->conn, UNI_BT_CONN_PROTOCOL_BLE);
     uni_bt_conn_set_state(&d->conn, UNI_BT_CONN_STATE_DEVICE_DISCOVERED);
     d->conn.rssi = rssi;
+    d->ble_hid_service_filter = hid_probe;
+    d->ble_hid_service_index = UINT8_MAX;
 
     hog_connect(addr, addr_type);
 }
@@ -929,6 +862,7 @@ void uni_bt_le_scan_start(void) {
     if (!ble_enabled)
         return;
 
+    if (!is_scanning) uni_bt_le_adv_reset(&advertisement_cache);
     gap_start_scan();
     logi("BLE scan -> 1\n");
     is_scanning = true;
@@ -941,6 +875,7 @@ void uni_bt_le_scan_stop(void) {
     gap_stop_scan();
     logi("BLE scan -> 0\n");
     is_scanning = false;
+    uni_bt_le_adv_reset(&advertisement_cache);
 }
 
 void uni_bt_le_disconnect(uni_hid_device_t* d) {

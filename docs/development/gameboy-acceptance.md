@@ -2,14 +2,14 @@
 
 # Game Boy baseline acceptance
 
-## Current 1.3 status (2026-10-01)
+## Current 1.4 status (2026-10-04)
 
-The current local application is `build/review-fixes-1.3/FoloToy-AI-Passport.bin`; the complete package is `artifacts/releases/FoloToy-GameBoy-1.3-full.bin`. Version 1.3 includes BLE keyboard controls, 16 kHz audio, a green monochrome game palette, per-game launch animation, deletable preinstalled games, and the four storage/display/discovery review fixes. See the [controls](../../README.md#bluetooth-keyboards), [firmware guide](release/gameboy-firmware.md), and [build-specific validation](gameboy-validation.md).
+The current local application is `build/ble-discovery-fixes/FoloToy-AI-Passport.bin`; the complete package is `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`. Version 1.4 adds four BLE discovery fixes: no Xbox-name requirement, Joystick admission, HID service UUID detection, and advertising/scan-response merging. It retains the 1.3 functionality and storage/display fixes. See the [controls](../../README.md#bluetooth-keyboards), [firmware guide](release/gameboy-firmware.md), [controller protocol evidence](gameboy-sources.md#reported-controller-protocols), and [build-specific validation](gameboy-validation.md).
 
 - Build: PASS; complete-image layout and checksum verification passed.
-- Host tests: PASS, 29 groups and both supplied ROMs for 900 host frames each.
-- Device tests: PASS for the repair build's application-only COM14 write and 25-second startup observation. The user confirmed normal behavior on the preceding 1.3 build.
-- Unverified: physical keyboards including MCHOSE, gameplay/audio after the final PPU repair, real multi-client management and storage faults, full-image first installation of the repair build, and endurance/performance limits.
+- Host tests: PASS, 31 groups, zero failures; earlier 900-frame checks of both supplied ROMs apply to the unchanged emulator core.
+- Device tests: NOT RUN for the 1.4 package. The same BLE implementation in the preceding 1.3 clean image passed full COM14 flashing and 45-second first-boot / 20-second reboot serial checks.
+- Unverified: 1.4 preloaded boot/game operation, reported controllers, physical keyboards including MCHOSE, gameplay/audio after the PPU repair, real multi-client management and storage faults, and endurance/performance limits. These discovery fixes do not add Bluetooth Classic or resolve the previously reported room freeze, unexpected reboot or music-tempo fluctuations.
 
 The sections below retain historical acceptance evidence; they do not establish that the latest binary passed every earlier device test.
 

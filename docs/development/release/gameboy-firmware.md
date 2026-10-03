@@ -18,14 +18,14 @@ The packaging tool checks the fixed partition layout, source images, a freshly r
 
 ## Optional preinstalled games
 
-The current local 1.3 package is `artifacts/releases/FoloToy-GameBoy-1.3-full.bin` with an adjacent `.bin.sha256` file. It contains the reviewed application from `build/review-fixes-1.3`, matching the COM14 application update, plus the two supplied games. See the [1.3 changelog](../../CHANGELOG.md) for changes and validation limits. This package has not been publicly released.
+The current local 1.4 package is `artifacts/releases/FoloToy-GameBoy-1.4-full.bin` with an adjacent `.bin.sha256` file. It contains the BLE discovery fixes rebuilt as version 1.4 in `build/ble-discovery-fixes`, plus the two supplied games. COM14 startup was checked using the preceding 1.3 clean build with the same BLE fixes; the 1.4 preloaded image has not been flashed or publicly released. See the [1.4 changelog](../../CHANGELOG.md) and [validation record](../gameboy-validation.md).
 
 Pass repeatable `--rom` arguments to include local games in the normal writable ROM partition. If a source filename is too long, give one `--rom-name` per ROM in the same order (at most 31 UTF-8 bytes each). Source files are read without renaming or modifying them. Without `--output`, this mode writes `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`; omitting `--rom` still produces the empty clean image used by CI.
 
 ```powershell
 $redRom = 'E:\ROMs\PokemonRed.gb'
 $marioRom = 'E:\ROMs\SuperMarioLand.gb'
-$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/review-fixes-1.3', '--rom', $redRom, '--rom-name', 'Pokemon Red', '--rom', $marioRom, '--rom-name', 'Super Mario Land', '--output', 'artifacts/releases/FoloToy-GameBoy-1.3-full.bin')
+$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/ble-discovery-fixes', '--rom', $redRom, '--rom-name', 'Pokemon Red', '--rom', $marioRom, '--rom-name', 'Super Mario Land', '--output', 'artifacts/releases/FoloToy-GameBoy-1.4-full.bin')
 & python.exe @packageArgs
 & python.exe @packageArgs --verify
 ```

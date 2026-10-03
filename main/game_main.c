@@ -429,6 +429,7 @@ static bool pairing_loop(void) {
                     const gamepad_candidate_t *candidate = &discovery.candidates[i];
                     char short_name[19];
                     gamepad_copy_name(short_name, sizeof(short_name), candidate->name[0] ? candidate->name :
+                                      candidate->type_pending ? "BLE HID" :
                                       candidate->keyboard ? "BLE Keyboard" : "手柄");
                     snprintf(choices[count], sizeof(choices[count]), "%s %02X:%02X", short_name,
                              candidate->address[4], candidate->address[5]);

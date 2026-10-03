@@ -2,7 +2,45 @@
 
 # Game Boy 移植验证记录
 
-## 当前完整固件包（2026-10-01）
+## 文档与源码交付（2026-10-04）
+
+中英文总览、操作说明、验收、来源／协议资料、固件说明及更新日志已对齐到 1.4。1.4 更新日志单独列出四项发现修复，不再把预装游戏重复列为新增功能。提交前检查通过：`build/host-regression-e9t62reh/results.json` 中定向 25 组、补充 Python 两组，以及复用未变化的补充 C 四组结果，共 31 组、0 失败。仓库与空白检查通过；复用未变化的工作流检查及下方 1.4 构建／镜像验证。再次核对本地 8 MiB 包哈希与校验文件一致。源码交付不执行烧录或发布标签／Release；ROM、生成固件和设备日志不进入 Git。
+
+## 1.4 预装发布包
+
+按用户要求，将唯一版本来源 `PROJECT_VER` 从 1.3 升至 1.4。当前发布产物为 `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`，恰好 8,388,608 字节，同目录提供 `.bin.sha256`。SHA-256：`28b178e819a9cf3dd6a064558ca8863123a40b4d2ff0a84c20fb39e8b6636adb`。继续预装用户提供的汉化《口袋妖怪红》（1,048,576 字节）与《超级马里奥大陆》（131,072 字节），NVS／PHY 及初始存档保持清洁。此前 1.3 发布文件未改。`build/ble-discovery-fixes` 的应用／构建产物现为 1.4；下方先前的启动日志仍对应 1.3。
+
+Build：**PASS**。ESP-IDF 5.5.3 重建、合并／分区校验、预装打包及独立 `--verify` 复验均通过；Esptool 确认应用版本为 **1.4**，镜像校验和／哈希有效。日志：`build/release-1.4-build.log`、`build/release-1.4-merge.log`、`build/release-1.4-image-info.log`。Host tests：**PASS**，本轮仅改变版本元数据与发布文档，复用下方 31 组有效结果；仓库和空白检查再次通过。Device tests：**NOT RUN，针对 1.4 预装镜像**。此前 COM14 启动检查使用相同 BLE 实现的 1.3，不能作为本包的上板验收。Unverified：1.4 预装版启动／游戏运行，以及反馈手柄的配对、输入和重连。准备发布包时未再次烧录、打标签或公开发布；后续源码提交不改变这些实机验收边界。
+
+## COM14 完整安装与启动检查（2026-10-03）
+
+连接的设备原先运行非 Game Boy 固件，分区包含 `factory`、`cardid` 和 `recovery`。应用单独更新的兼容性检查在写入前停止。用户明确授权完整安装后，将 `build/ble-discovery-fixes/FoloToy-GameBoy-8MB-clean.bin` 从 `0x0` 写入 COM14：8,388,608 字节，SHA-256 为 `cebf2ce5be17441a248d0bd3bf9172f7986590ee2a0d6448b005e9b37c4f90e7`。Esptool 完成写入且数据哈希校验通过。本次替换了全部原有分区／数据；清洁安装不含游戏。烧录期间未修改固件源码，也未重新构建。
+
+Build：**PASS**，Host tests：**PASS**，复用下方已验证构建和 31 组通过结果。Device tests：**PASS，仅限烧录和串口启动检查**。首次启动采集 45 秒，主动重启后采集 20 秒；各有一次启动，均确认 `game_app`／`roms`／`saves` 分区、显示／按键初始化、`folotoy_gameboy`、BLE 开启、BTstack 运行和 BLE 扫描开始。两份日志均未见错误级别消息、panic、看门狗或崩溃回溯。首启提示射频校准数据缺失，随后完成完整校准并保存；重启后该警告未再出现。串口采集已结束并关闭 COM14。
+
+本地证据均被 Git 忽略：`build/ble-discovery-fixes/com14-full-flash.log`，及同目录下的 `com14-gameboy-boot-sanitized.log`、`com14-gameboy-reboot-sanitized.log`。启动日志已隐去蓝牙地址。Unverified：实体屏幕显示、按键操作、游戏运行，以及手柄发现／配对／输入／重连。用户目前没有此前反馈的手柄型号，因此没有进行手柄兼容性实测；本次启动结果不能代替第 1～4 项的实体手柄验证。
+
+## Joystick 与 HID 服务发现修复（2026-10-03）
+
+第 2、3 项已实现，并保留此前第 1、4 项成果。应用接纳 Joystick 的 COD 0x0504。类型缺失、为零或为通用 HID 的设备，可依据 HID 服务 UUID 0x1812（16 位或蓝牙基础 128 位列表）进入发现流程；仍须由用户选择。仅依据 UUID 发现的候选必须在就绪前提供可支持的报告描述符，输入只来自选中的 HID 服务；不支持的描述符会触发断开。已知类型的配对行为和输入解析器保留；待确认类型的 HID 候选允许显示键盘 PIN。边界见[来源记录](gameboy-sources.zh_CN.md)，包括未改变的设备信息服务失败路径。
+
+Build：**PASS**。在 `build/ble-discovery-fixes` 使用 ESP-IDF 5.5.3 重建，合并镜像／分区校验和 8 MiB 清洁版打包通过。应用大小 2,516,432 / 3,145,728 字节，SHA-256 为 `d881c9666783f92ee4077196ad96d0bb35db38a161c6a0503ce3f85cf8fee7e8`；清洁镜像 SHA-256 为 `cebf2ce5be17441a248d0bd3bf9172f7986590ee2a0d6448b005e9b37c4f90e7`。日志为 `build/ble-hid-build.log` 和 `build/ble-hid-merge.log`。产物已替换下方早先发现修复记录所用构建目录中的文件，归档发布文件未改。仍有既有控制台未使用函数／变量警告。未烧录。
+
+Host tests：**PASS**，31 组通过、0 失败：`build/host-regression-r8onj4a7/results.json` 中 25 组，重跑两组补充 Python 测试，并复用四组未受影响的补充 C 测试结果。覆盖 Joystick 选择／取消、分包广播、HID UUID 列表、通用／缺失类型、明确鼠标类型拒绝、缓存隔离／过期、标准手柄／键盘描述符、纯媒体及类型冲突集合、截断和描述符栈下溢。仓库／空白检查通过；复用未改变工作流的校验结果。本机无可用 Bash，以 Windows 原生命令完成等价门禁。
+
+Device tests：**NOT RUN**。Unverified：四款反馈手柄的 BLE 发现、配对、输入和重连；既有 Xbox／键盘回归；仅有 HID UUID 的键盘 PIN；多个 HID 服务的实际行为。本次修复未增加经典蓝牙，也不能证明具体型号兼容。清洁镜像会覆盖用户数据；仅在现有分区布局兼容且明确同意烧录时，使用应用镜像写入 `0x10000`。
+
+## BLE 发现修复（2026-10-03）
+
+手柄候选不再要求 Xbox 名称。BLE 广播包与扫描响应中的名称／类型按地址及地址类型合并，使用 16 项固定上限缓存，连续五秒无数据后失效，显式停止扫描时重置。完整名称不会被后续短名称覆盖，畸形 AD 字段不会更新缓存。Joystick 接入、类型要求、配对安全策略和输入解析器未改变。固件版本仍为 1.3；下方历史固件包未被替换。
+
+Build：**PASS**。在 `build/ble-discovery-fixes` 使用 ESP-IDF 5.5.3 全新配置构建，合并镜像／分区校验和 8 MiB 清洁版打包通过。应用大小 2,515,232 / 3,145,728 字节，SHA-256 为 `1915f737b7abc62e8754d7bd7e1667c47ec8ac9ffe4284d53d53ce05b87664ec`。应用镜像为 `build/ble-discovery-fixes/FoloToy-AI-Passport.bin`，现有分区布局兼容时写入 `0x10000`。同目录清洁镜像用于首次安装，会覆盖用户数据；SHA-256 为 `a8c4f853aa0854beed1b7282bacedf15c0c2362f7825a1971baf8175c6f1d117`。初次打包因相对输出路径、新 Shell 缺少 IDF_PATH 失败，修正命令后使用同一应用构建验证通过。
+
+Host tests：**PASS**，30 组，最终失败 0 组（`build/host-regression-kjyqicw4/results.json` 中 24 组定向检查，另有六组不重复补充检查）。名称回归测试先在旧筛选条件下失败，修复后通过。缓存测试覆盖两种分包顺序、候选名称更新、保留选中目标、地址／地址类型隔离、过期及计时回绕、缓存替换、完整／短名称、畸形长度、UTF-8 名称截断和重置。仓库检查、actionlint 和空白检查通过。本机无法运行 Bash，门禁检查使用 Windows 原生命令完成。
+
+Device tests：**NOT RUN**。只读串口枚举发现 COM14 上的 Espressif USB 设备；未打开串口、未烧录。Unverified：反馈手柄及原有 Xbox／键盘设备的实际发现、配对、输入和重连。不能据此认定反馈的四款型号已经兼容。
+
+## 历史 1.3 完整固件包（2026-10-01）
 
 最终本地文件名为 `artifacts/releases/FoloToy-GameBoy-1.3-full.bin`，同目录提供 `.bin.sha256` 文件。使用下文未变化的修复构建打包及执行 `--verify` 均通过：大小 8,388,608 字节，SHA-256 为 `90b335f2428a45f9f7f337280eb4a045c8f73a6b3450caf540d92f458208815c`。它与此前 `1.3-review-fixes-8MB-preloaded` 固件逐字节一致，包含两款用户提供的游戏。整理交付文件名没有重建或重新烧录应用，实机验收范围仍以下文记录为准。键盘操作及包内其他变化见[累计更新日志](../CHANGELOG.zh_CN.md)。
 

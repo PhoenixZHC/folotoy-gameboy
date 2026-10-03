@@ -8,7 +8,7 @@ This directory contains AI Passport engineering rules and reusable workflows, gr
 
 ## Game Boy firmware
 
-- [gameboy-acceptance.md](gameboy-acceptance.md): current 1.3 acceptance limits and historical device results.
+- [gameboy-acceptance.md](gameboy-acceptance.md): current 1.4 acceptance limits and historical device results.
 - [gameboy-validation.md](gameboy-validation.md): build, host-test, device-test, and package evidence.
 - [gameboy-sources.md](gameboy-sources.md): third-party sources, licenses, and local adaptations.
 

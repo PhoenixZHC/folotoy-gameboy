@@ -17,7 +17,7 @@
 
 ## Game Boy 固件
 
-- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.3 验收范围与历史实机结果。
+- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.4 验收范围与历史实机结果。
 - [gameboy-validation.zh_CN.md](gameboy-validation.zh_CN.md)：构建、主机测试、设备测试及固件包证据。
 - [gameboy-sources.zh_CN.md](gameboy-sources.zh_CN.md)：第三方来源、许可证及本地适配。
 

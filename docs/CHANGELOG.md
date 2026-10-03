@@ -10,6 +10,15 @@
 > with `CHANGELOG.zh_CN.md`. The entries currently under `Unreleased` are pending
 > review for the next release; they are not a finalized release history.
 
+## Game Boy 1.4 (release package prepared)
+
+- Removed the requirement for controller names to contain Xbox.
+- Fixed Joystick-type controllers being filtered out.
+- Added HID service UUID detection for BLE controllers without a specific advertised device type.
+- Merged device information from advertising packets and scan responses to prevent missed devices.
+
+The four reported controller models remain untested. Full-image installation at `0x0` overwrites existing data.
+
 ## Game Boy 1.3 — 2026-10-01 (local firmware package)
 
 This summary covers the accumulated changes from the keyboard addition through the 1.3 review fixes.

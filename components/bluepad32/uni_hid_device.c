@@ -318,7 +318,8 @@ bool uni_hid_device_is_cod_supported(uint32_t cod) {
     return false;
 }
 
-uni_error_t uni_hid_device_on_device_discovered(bd_addr_t addr, const char* name, uint16_t cod, uint8_t rssi) {
+static uni_error_t on_device_discovered(bd_addr_t addr, const char* name, uint16_t cod, uint8_t rssi,
+                                       bool hid_service_probe) {
     if (!uni_bt_allowlist_is_allowed_addr(addr)) {
         loge("Ignoring device, not in allow-list: %s\n", bd_addr_to_str(addr));
         return UNI_ERROR_IGNORE_DEVICE;
@@ -330,7 +331,7 @@ uni_error_t uni_hid_device_on_device_discovered(bd_addr_t addr, const char* name
         return UNI_ERROR_IGNORE_DEVICE;
     }
 
-    if (!uni_hid_device_is_cod_supported(cod)) {
+    if (!hid_service_probe && !uni_hid_device_is_cod_supported(cod)) {
         logd("Unsupported Class of Device: %#x\n", cod);
         return UNI_ERROR_IGNORE_DEVICE;
     }
@@ -340,6 +341,14 @@ uni_error_t uni_hid_device_on_device_discovered(bd_addr_t addr, const char* name
         return uni_get_platform()->on_device_discovered(addr, name, cod, rssi);
 
     return UNI_ERROR_SUCCESS;
+}
+
+uni_error_t uni_hid_device_on_device_discovered(bd_addr_t addr, const char* name, uint16_t cod, uint8_t rssi) {
+    return on_device_discovered(addr, name, cod, rssi, false);
+}
+
+uni_error_t uni_hid_device_on_ble_hid_discovered(bd_addr_t addr, const char* name, uint8_t rssi) {
+    return on_device_discovered(addr, name, UNI_BT_COD_MAJOR_PERIPHERAL, rssi, true);
 }
 
 void uni_hid_device_set_incoming(uni_hid_device_t* d, bool incoming) {

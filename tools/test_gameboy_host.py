@@ -18,6 +18,9 @@ def main():
                 '-Icomponents/gb_core/gb', '-Icomponents/minigb_apu']
     cases = [
         ('gamepad_discovery', ['main/gamepad_discovery.c']),
+        ('bt_le_advertisement', ['components/bluepad32/bt/uni_bt_le_advertisement.c',
+                                 'main/gamepad_discovery.c']),
+        ('bt_le_hid', ['components/bluepad32/bt/uni_bt_le_hid.c']),
         ('gb_input', ['main/gb_input.c']),
         ('gb_keyboard_hid', ['main/gb_input.c',
                              'components/bluepad32/parser/uni_hid_parser.c',
@@ -62,6 +65,8 @@ def main():
                    '-O2', '-Wall', '-Wextra', '-Werror'] + includes
         if cpp:
             command += ['-Wno-unused-parameter']
+        if name in ('bt_le_advertisement', 'bt_le_hid'):
+            command += ['-Icomponents/bluepad32/include']
         if name == 'gb_keyboard_hid':
             command += ['-Itests/keyboard_stubs', '-Icomponents/bluepad32/include',
                         '-Icomponents/btstack/src']

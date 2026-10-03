@@ -17,12 +17,19 @@ bool gamepad_discovery_observe(gamepad_discovery_t *state,
                               const uint8_t address[6], uint16_t cod,
                               const char *name) {
     bool keyboard = (cod & 0x1fc0) == 0x0540;
-    bool gamepad = cod == 0x0508 && (!name || !name[0] || strstr(name, "Xbox"));
-    if (!state || !address || (!keyboard && !gamepad)) return false;
+    bool gamepad = cod == 0x0508 || cod == 0x0504;
+    // BLE-only probe emitted for an advertised HID service; type is checked after selection.
+    bool hid_probe = cod == 0x0500;
+    if (!state || !address || (!keyboard && !gamepad && !hid_probe)) return false;
 
     for (size_t i = 0; i < state->count; i++) {
         gamepad_candidate_t *candidate = &state->candidates[i];
         if (memcmp(candidate->address, address, 6) != 0) continue;
+        if (candidate->keyboard != keyboard || candidate->type_pending != hid_probe) {
+            candidate->keyboard = keyboard;
+            candidate->type_pending = hid_probe;
+            state->revision++;
+        }
         char shortened[sizeof(candidate->name)];
         gamepad_copy_name(shortened, sizeof(shortened), name);
         if (shortened[0] && strcmp(candidate->name, shortened) != 0) {
@@ -35,6 +42,7 @@ bool gamepad_discovery_observe(gamepad_discovery_t *state,
     gamepad_candidate_t *candidate = &state->candidates[state->count++];
     memcpy(candidate->address, address, 6);
     candidate->keyboard = keyboard;
+    candidate->type_pending = hid_probe;
     if (name) {
         gamepad_copy_name(candidate->name, sizeof(candidate->name), name);
     }

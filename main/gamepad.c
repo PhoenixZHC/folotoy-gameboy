@@ -180,8 +180,8 @@ static uni_error_t device_discovered(bd_addr_t addr, const char *name,
     taskEXIT_CRITICAL(&s_lock);
     if (!selected) return UNI_ERROR_IGNORE_DEVICE;
     // Only one selected peripheral connects at a time. Keep the tested
-    // gamepad security policy; allow keyboard peers to request PIN entry.
-    sm_set_io_capabilities((cod & 0x0040) ? IO_CAPABILITY_DISPLAY_ONLY
+    // gamepad security policy; unknown HID peers might also be PIN-entry keyboards.
+    sm_set_io_capabilities(((cod & 0x0040) || cod == 0x0500) ? IO_CAPABILITY_DISPLAY_ONLY
                                          : IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
     ESP_LOGI(TAG, "selected BLE input found (%s)",
              name && name[0] ? name : "unnamed");

@@ -2,14 +2,14 @@
 
 # Game Boy 基准验收
 
-## 当前 1.3 状态（2026-10-01）
+## 当前 1.4 状态（2026-10-04）
 
-当前本地应用为 `build/review-fixes-1.3/FoloToy-AI-Passport.bin`，完整固件为 `artifacts/releases/FoloToy-GameBoy-1.3-full.bin`。1.3 包含 BLE 键盘操作、16 kHz 音频、绿色单色游戏画面、每次游戏启动前的动画、可删除的预装游戏，以及存储／显示／设备发现相关四项审阅修复。参见[操作说明](../../README.zh_CN.md#蓝牙键盘)、[固件说明](release/gameboy-firmware.zh_CN.md)及[各构建验证记录](gameboy-validation.zh_CN.md)。
+当前本地应用为 `build/ble-discovery-fixes/FoloToy-AI-Passport.bin`，完整固件为 `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`。1.4 新增四项 BLE 发现修复：取消 Xbox 名称限制、接纳 Joystick 类型、识别 HID 服务 UUID、合并广播／扫描响应，保留 1.3 功能及存储／显示修复。参见[操作说明](../../README.zh_CN.md#蓝牙键盘)、[固件说明](release/gameboy-firmware.zh_CN.md)、[手柄协议证据](gameboy-sources.zh_CN.md#反馈手柄的协议)及[各构建验证记录](gameboy-validation.zh_CN.md)。
 
 - Build：PASS，完整镜像布局及校验值验证通过。
-- Host tests：PASS，29 组通过，两款预装 ROM 另各运行 900 个主机帧。
-- Device tests：修复版 COM14 仅应用烧录和 25 秒启动观察 PASS；用户确认正常的是此前的 1.3 构建。
-- Unverified：迈从等实体键盘、最终 PPU 修复后的游戏及声音、真实多客户端管理和存储故障、修复版完整镜像首次安装，以及长时间运行和性能限制。
+- Host tests：PASS，31 组、0 失败；两款预装 ROM 此前各运行 900 个主机帧，适用于未变化的模拟器核心。
+- Device tests：1.4 包为 NOT RUN。此前包含相同 BLE 实现的 1.3 清洁镜像通过 COM14 完整烧录及首次启动 45 秒、重启 20 秒串口检查。
+- Unverified：1.4 预装版启动／游戏运行、反馈手柄、迈从等实体键盘、PPU 修复后的游戏及声音、真实多客户端管理和存储故障，以及长时间运行和性能限制。本次发现修复不增加经典蓝牙支持，也不能证明此前特定房间卡住、意外重启或音乐速度波动已解决。
 
 下文保留历史验收证据，不代表最新二进制已经重复通过此前的全部实机测试。
 
