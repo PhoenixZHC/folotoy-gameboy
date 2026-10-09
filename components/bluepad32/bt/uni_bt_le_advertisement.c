@@ -39,6 +39,14 @@ const uni_bt_le_adv_entry_t* uni_bt_le_adv_observe(uni_bt_le_adv_cache_t* cache,
             if (value_length % 2) return NULL;
             for (size_t i = 0; i < value_length; i += 2)
                 if (value[i] == 0x12 && value[i + 1] == 0x18) fields.hid_service = true;
+        } else if (type == 0x04 || type == 0x05) { // 32-bit UUID lists.
+            if (value_length % 4) return NULL;
+            for (size_t i = 0; i < value_length; i += 4)
+                if (value[i] == 0x12 && value[i + 1] == 0x18 && !value[i + 2] && !value[i + 3])
+                    fields.hid_service = true;
+        } else if (type == 0x16) { // Service Data: first two bytes identify the service.
+            if (value_length < 2) return NULL;
+            if (value[0] == 0x12 && value[1] == 0x18) fields.hid_service = true;
         } else if (type == 0x06 || type == 0x07) { // Bluetooth base UUID, little endian.
             static const uint8_t hid_uuid[16] = {
                 0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80,

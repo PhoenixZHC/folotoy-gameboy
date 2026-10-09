@@ -22,6 +22,7 @@
 #include "parser/uni_hid_parser_ds4.h"
 #include "parser/uni_hid_parser_ds5.h"
 #include "parser/uni_hid_parser_generic.h"
+#include "parser/uni_hid_parser_standard.h"
 #include "parser/uni_hid_parser_icade.h"
 #include "parser/uni_hid_parser_keyboard.h"
 #include "parser/uni_hid_parser_mouse.h"
@@ -71,7 +72,7 @@ uni_hid_device_t* uni_hid_device_create(bd_addr_t address) {
         if (bd_addr_cmp(g_devices[i].conn.btaddr, zero_addr) == 0) {
             logi("Creating device: %s (idx=%d)\n", bd_addr_to_str(address), i);
 
-            memset(&g_devices[i], 0, sizeof(g_devices[i]));
+            uni_hid_device_init(&g_devices[i]);
             bd_addr_copy(g_devices[i].conn.btaddr, address);
 
             // Delete device if it doesn't have a connection
@@ -395,9 +396,12 @@ void uni_hid_device_set_hid_descriptor(uni_hid_device_t* d, const uint8_t* descr
         return;
     }
 
-    int min = btstack_min(HID_MAX_DESCRIPTOR_LEN, len);
+    if (!descriptor || len <= 0 || len > HID_MAX_DESCRIPTOR_LEN) {
+        loge("Invalid HID descriptor length: %d\n", len);
+        return;
+    }
     memcpy(d->hid_descriptor, descriptor, len);
-    d->hid_descriptor_len = min;
+    d->hid_descriptor_len = len;
     d->flags |= FLAGS_HAS_HID_DESCRIPTOR;
 
     //    printf_hexdump(descriptor, len);
@@ -474,7 +478,8 @@ void uni_hid_device_disconnect(uni_hid_device_t* d) {
     // Cleanup
     if (!uni_hid_device_is_virtual_device(d)) {
         type = gap_get_connection_type(d->conn.handle);
-        if (IS_ENABLED(UNI_ENABLE_BLE) && type == GAP_CONNECTION_LE)
+        if (IS_ENABLED(UNI_ENABLE_BLE) &&
+            (type == GAP_CONNECTION_LE || d->conn.protocol == UNI_BT_CONN_PROTOCOL_BLE))
             uni_bt_le_disconnect(d);
         else if (IS_ENABLED(UNI_ENABLE_BREDR) && type == GAP_CONNECTION_ACL)
             uni_bt_bredr_disconnect(d);
@@ -490,7 +495,7 @@ void uni_hid_device_disconnect(uni_hid_device_t* d) {
     btstack_run_loop_remove_timer(&d->inquiry_remote_name_timer);
 
     // If it was already connected, tell platforms
-    if (connected)
+    if (connected || d->conn.protocol == UNI_BT_CONN_PROTOCOL_BLE)
         uni_hid_device_on_connected(d, false);
 }
 
@@ -762,6 +767,15 @@ void uni_hid_device_guess_controller_type_from_pid_vid(uni_hid_device_t* d) {
             break;
     }
 
+    // Use the real report map for standard BLE profiles, including Xbox-name
+    // clones. Proprietary controller protocols and keyboards keep their drivers.
+    if (d->conn.protocol == UNI_BT_CONN_PROTOCOL_BLE &&
+        (type == CONTROLLER_TYPE_AndroidController || type == CONTROLLER_TYPE_XBoxOneController ||
+         d->report_parser.parse_usage == uni_hid_parser_generic_parse_usage)) {
+        memset(&d->report_parser, 0, sizeof(d->report_parser));
+        d->report_parser.setup = uni_hid_parser_standard_setup;
+        d->report_parser.parse_input_report = uni_hid_parser_standard_parse;
+    }
     d->controller_type = type;
     d->flags |= FLAGS_HAS_CONTROLLER_TYPE;
 }

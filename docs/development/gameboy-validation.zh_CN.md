@@ -2,6 +2,78 @@
 
 # Game Boy 移植验证记录
 
+## 1.7 源码归档与 GitHub 同步（2026-10-10）
+
+本次整理累计 BLE／多按键输入修复、核心及绘制优化、隔离自动化测试和双语文档。预装由两款扩充至十四款，游戏仅保留在本地完整包；GitHub 不包含 ROM、生成固件、存档或设备日志。生产源码与已通过构建、主机、虚拟机及 COM14 实测的归档逐项核对一致，本轮只更新文档，不重新构建或烧录。下方“未提交”等状态属于各历史交付时点；当前源码版本和同步状态以 Git 记录为准。
+
+## 1.7 实机复测与交付（2026-10-10）
+
+1.7 已按明确批准仅更新 COM14 的 0x10000，写入校验、分区匹配、版本及 35 秒启动检查通过；游戏、存档、设置和配对分区未写入。240 秒观察捕获 12 个窗口，覆盖卡比和宇宙巡航机：模拟 59.6–59.8 fps、显示 14.9–29.8 fps，声音开启且输出采样递增，未报告崩溃、音频／显示丢块或输入积压丢弃。用户明确反馈“流畅度大幅改善，声音流畅也改善了，可以听到了”。这确认本轮体验改善，不是全部游戏、全部手柄或恒定显示帧率的保证。
+
+Build：PASS，ESP-IDF 5.5.3，正式入口 GB_SIM_TEST=OFF；应用 2,520,064 / 3,145,728 字节，8 MiB 完整镜像与独立校验通过，14 游戏 ROM 分区与 1.5 逐字节相同。
+
+Host tests：PASS，28 组／0 失败，未变化的 6 组补充检查复用此前有效结果；14 款各 3,600 帧、旧新版配对三轮，累计画面、PCM、CPU 与完整 RAM 状态哈希一致。
+
+Simulator：卡比和宇宙巡航机各 6 组／0 失败，均运行 1,800 帧并目视确认截图进入关卡，末尾 PCM 峰值分别 26,740 和 18,620。隔离入口不测 BLE 或真实硬件性能。
+
+Device tests：写入／启动 PASS；本轮用户画面及声音体验确认改善。Unverified：全部游戏完整流程、全部手柄矩阵、严格同场景帧率基准、长时间内存稳定性及音频欠载仪器测量。
+
+| 产物 | SHA-256 |
+| --- | --- |
+| 1.7 full (8,388,608 bytes) | `cbed22871af0ed78fc354ecb94e2b13b91c29c0af789739cde5fd7ad7906dae8` |
+| 1.7 app | `3664ad60e865e51372dc856aca97a01d6795963a796b718cf4f010aa77a9bf2a` |
+| ELF | `3f62a2b4a4e6a5b5457288cf2e39e269ae9276879f4df37bcdcca16139e76763` |
+
+`build/host-regression-bt783ls5/results.json`, `build/perf-all14-compact.json`, `build/sim-1.7-kirby-final`, `build/sim-1.7-gradius-final`, `build/release-1.7/com14-summary.json`, `build/release-1.7/com14-play-summary.json`.
+
+## 1.6 性能优化与模拟器回归（2026-10-09）
+
+正式应用：`build/release-1.6/FoloToy-AI-Passport.bin`；14 游戏完整包：`artifacts/releases/FoloToy-GameBoy-1.6-14games-full.bin`。版本仅由 `PROJECT_VER=1.6` 提供。FC 项目未修改。
+
+- Build：PASS，ESP-IDF 5.5.3；应用 2,539,840 / 3,145,728 字节；生产构建关闭 `GB_SIM_TEST`。8 MiB 完整镜像打包与独立复验通过，ROM 分区与 1.5 完整包相同。Esptool 确认 1.6 及有效校验和／哈希。
+- Host tests：PASS，定向 28 组／0 失败，RAM 边界扩充后单组复测通过；14 款各 3,600 帧、配对三轮的画面／PCM／CPU 与完整 RAM 状态哈希一致。未变化的补充 C 四组、Python 两组沿用此前有效结果，共 34 组。
+- Simulator：PASS，优化前后各 6 组，卡比 1,800 帧。累计虚拟工作耗时 20,212,883 → 16,291,785 微秒，减少 19.4%；截图像素哈希一致，音频输出采样数相同。详细限制、失败尝试与复现见[性能记录](gameboy-performance.zh_CN.md)。
+- Device tests：1.6 已写入并启动，用户反馈流畅度无明显改善且无声，性能验收未通过；后续 1.7 结果见上。旧 1.5 已经按授权写入 COM14，14 项目录／启动检查通过；随后用户反馈不够流畅，240 秒运行观察见下文所引记录。没有把虚拟机结果记为真机通过。
+
+| 产物 | SHA-256 |
+| --- | --- |
+| 1.6 十四游戏完整包（8,388,608 字节） | `48d30d9a4a9f097bf1b1d66e10dcfbdea06b63f9c438f60a83b30c2320b3748c` |
+| 1.6 应用／仅应用升级包 | `8f2cdc3491d71bc8fa2df92c096056f17644b7d3e87abab2fc2ccc781c2fb677` |
+| 对应 ELF | `3ab370a6f6aa1c395b6a9d8d199aaa9cf56823fd9b20888937072efee3754949` |
+
+证据：`build/release-1.6-build.log`、`build/release-1.6-image-info.log`、`build/release-1.6/package-verify.log`、`build/host-regression-3pk1j7iu/results.json`、`build/perf-all14-final.json`、`build/sim-candidate-final/results.json`。完整包从 `0x0` 安装覆盖用户数据；兼容分区的日常更新只写应用到 `0x10000`。源码未提交／推送，未公开发布。下方为历史交付时点，不代表最新设备状态。
+
+## 1.5：有序输入与完整包（2026-10-09）
+
+用户确认 FC 已完成手柄测试，授权修复 GameBoy 对应问题。本次移植保留 FC 完整状态队列（16 条／100 ms）、独立松开和生命周期清空，同时包含此前 BLE／显示修复。版本来源现为 `PROJECT_VER=1.5`；FC 只读、未修改，GameBoy 真机验收单独计算。
+
+- Build：PASS，ESP-IDF 5.5.3，在 `build/release-1.5` 从默认配置全新构建。应用 2,521,776 / 3,145,728 字节。合并／分区校验、清洁及预装 8 MiB 打包、独立 `--verify` 复验均通过。Esptool 确认版本 1.5，校验和／哈希有效。日志：`build/release-1.5-build.log`、`build/release-1.5-merge.log`、`build/release-1.5-image-info.log`。
+- Host tests：PASS，34 组／0 失败：`build/host-regression-o9jcth31/results.json` 中定向 28 组，补充 C 四组及 Python 两组。新增缓存测试组含五类场景；以 `INPUT_LEGACY_SNAPSHOT` 编译可复现保持方向时短按丢失（预期断言失败），生产缓存通过。证据：`build/release-1.5-input-legacy.log`。Windows 下以原生命令执行门禁对应检查，没有调用 Bash 包装脚本。
+- Device tests：GameBoy 1.5 为 NOT RUN。Unverified：方向＋连续 A/B、独立松开、摇杆回中、菜单／暂停／唤醒／重连、具体手柄兼容及实际显示／音频性能。FC 反馈及旧 GameBoy 结果不代表本二进制验收。本轮未烧录、提交、推送、打标签或公开 Release。
+
+| 产物 | SHA-256 |
+| --- | --- |
+| `artifacts/releases/FoloToy-GameBoy-1.5-full.bin`（8,388,608 字节） | `f8e5f27c8a368e2e3fa3a60218674925f3c2f2b12e38a2d68dffc13e7859892e` |
+| `artifacts/releases/FoloToy-GameBoy-1.5-clean.bin`（8,388,608 字节） | `24b97c9793850e51b87bec43ae78dfb89686188b0fc3103c1ca0027f600040aa` |
+| `build/release-1.5/FoloToy-AI-Passport.bin` | `1df9a9002f7ee1255e0bc7589d21db05a0ce71d3c753df9bea9ac09e7f89282d` |
+| `build/release-1.5/FoloToy-AI-Passport.elf` | `9445b6bb2116743a91600f75210ee2ca88c72c74eaf69bef276953705d5cac05` |
+
+完整包保留用户此前提供的汉化《口袋妖怪红》和《超级马里奥大陆》。两个完整镜像均有校验文件，从 `0x0` 写入会覆盖全部 Flash 数据；分区兼容时仅应用升级使用 `0x10000`。历史包未覆盖。按哈希归档的调试包为 `artifacts/releases/debug/f8e5f27c8a368e2e3fa3a60218674925f3c2f2b12e38a2d68dffc13e7859892e/manifest.json`，14 个固件／配置／测试文件复制后已逐一重算哈希。生成文件与 ROM 不进入 Git。
+
+最终仓库检查扫描 1,084 个文本文件并通过；actionlint 1.7.12、`git diff --check` 通过。实际 Obsidian GameBoy 入口／当前状态、共享 BLE 主题与交付记录已更新并回读核对。源码修改尚未提交。
+
+## 标准 BLE 输入与显示调度（2026-10-09，历史 1.4 构建）
+
+仅修改 GameBoy，FC 只读参考。[实现及 FC 交接](ble-input-fc-handoff.zh_CN.md)列出映射、限制、修改文件、测试与真机验收。版本保持 1.4；历史预装包未覆盖，没有烧录或发布。
+
+- Build：PASS，ESP-IDF 5.5.3，使用 `build/ble-input-20261009` 中由默认配置生成的隔离配置。应用 2,520,336 字节，合并镜像／分区校验及 8 MiB 清洁包校验通过。清洁镜像：`build/ble-input-20261009/GameBoy-clean.bin`，SHA-256 `64590e6d6fa6e51b5b142e1f95e38391672364ec0621bb0c9dc85ce15734e0c3`。仅兼容既有 GameBoy 分区时可将应用写入 `0x10000`；清洁镜像写入 `0x0` 会覆盖游戏、存档、设置和绑定。构建／合并日志：`build/ble-input-20261009-build-final.log`、`build/ble-input-20261009-merge.log`。
+- Host tests：33 组通过、0 失败，包括 `build/host-regression-p88nmfnm/results.json` 中定向 27 组、补充 C 四组、补充 Python 两组（`test_deep_sleep_contract.py`、`test_check_repo.py`）。仓库检查通过，共扫描 1,083 个文本文件；actionlint 1.7.12、`git diff --check` 通过。Windows 下以原生命令执行门禁对应的主机／静态／构建／打包检查，未调用 Bash 入口。旧解析器在“按住 A 后收到独立摇杆报告”的复现测试中失败，新解析器通过。恢复测试仅对无线／GATT 副作用使用桩，执行真实生产事件处理函数和描述符解析。
+- Device tests：NOT RUN。Unverified：实体 8/12 键、Android、Xbox 和键盘回归；配对、重连和唤醒；实际显示／声音性能。`display_fps` 统计完成显示的更新，包含画面不变而无需 SPI 传输的帧，不是独立画面数量，也不是性能保证。
+
+首次沙箱执行无法启动 ESP-IDF 编译器，三个打包测试组也无法写入沙箱临时目录；取得本地执行权限后重跑通过，没有切换工具链或忽略失败。本修订不声称修复此前游戏特定房间卡住、重启或音乐速度波动。
+
+对应应用 SHA-256：`7f08b610a6974c576eb679ddfd8e230323354b7d78e5c2ea3c4ac8780b2ffa2d`；ELF 文件 SHA-256：`b6190ed0bcf7af8d2a37b23655a16343a313f5aecfc345c49f5718b4810f65f2`，均保留在同一隔离构建目录。这些哈希只标识本地产物，不代表设备当前安装的固件。
+
 ## 文档与源码交付（2026-10-04）
 
 中英文总览、操作说明、验收、来源／协议资料、固件说明及更新日志已对齐到 1.4。1.4 更新日志单独列出四项发现修复，不再把预装游戏重复列为新增功能。提交前检查通过：`build/host-regression-e9t62reh/results.json` 中定向 25 组、补充 Python 两组，以及复用未变化的补充 C 四组结果，共 31 组、0 失败。仓库与空白检查通过；复用未变化的工作流检查及下方 1.4 构建／镜像验证。再次核对本地 8 MiB 包哈希与校验文件一致。源码交付不执行烧录或发布标签／Release；ROM、生成固件和设备日志不进入 Git。

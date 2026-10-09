@@ -15,9 +15,13 @@
 
 LCD 开关行为依据 [Pan Docs LCD Control](https://github.com/gbdev/pandocs/blob/master/src/LCDC.md) 和 [Interrupt Sources](https://github.com/gbdev/pandocs/blob/master/src/Interrupt_Sources.md)：游戏关闭 LCD 时停止 PPU 活动并清空画面，CPU／计时器继续运行；重新开启从第零行开始，首帧保持空白。本地内核将主机帧预算与 PPU 相位分开，即使跳过像素绘制也推进窗口行计数。这仍是扫描线级近似，不代表周期精确的 PPU 验证。
 
-可选的本地预装镜像另使用用户提供的汉化《口袋妖怪红》（1,048,576 字节）和《超级马里奥大陆》（131,072 字节），卡带信息及 SHA-256 标识见[验证记录](gameboy-validation.zh_CN.md)。这些 ROM 及生成的预装镜像不进入 Git 或公开发布流程，默认清洁镜像不含游戏。
+当前本地预装包使用用户 GB ROM 目录内的 14 款文件，逐游戏大小、SHA-256、筛选与测试证据见[经典游戏包](gameboy-classics-1.5.zh_CN.md)。旧双游戏版保留。源 ROM 及生成镜像不进入 Git 或公开发布流程，默认清洁镜像不含游戏。
 
-本地 BLE 发现还使用 16 项缓存，按地址及地址类型合并广播包和扫描响应中的名称／类型／HID 服务信息；连续五秒无数据后失效，停止扫描时重置。完整名称优先于短名称，畸形 AD 字段会在更新缓存前被拒绝。应用接纳 Gamepad 和 Joystick 候选，不按名称筛选。类型缺失、为零或为通用 HID 时，允许依据完整／不完整的 16 位或蓝牙基础 128 位 UUID 列表中的 0x1812 发现设备；不覆盖明确不同的类型。专用 BLE 发现入口保留白名单、信号强度和用户选择门槛，不放宽经典蓝牙的接纳范围。仅由 UUID 发现的候选采用显示配对码的能力，让键盘可请求 PIN。在就绪前，通过有界描述符检查确认顶层 Gamepad、Joystick 或 Keyboard Application 集合包含数据 Input；纯鼠标、纯媒体遥控、畸形或支持类型冲突的描述符被拒绝。选择第一个符合要求的 HID 服务，在解析器初始化前复制其描述符，并忽略其他服务或分类完成前的报告。既有报告解析器及已知类型的配对行为保持不变。类型和 HID UUID 都缺失、不支持／存在歧义的报告描述符，以及设备信息服务失败，仍不在本次发现修复范围内。
+本地 BLE 发现还使用 16 项缓存，按地址及地址类型合并广播包和扫描响应中的名称／类型／HID 服务信息；连续五秒无数据后失效，停止扫描时重置。完整名称优先于短名称，畸形 AD 字段会在更新缓存前被拒绝。应用接纳 Gamepad 和 Joystick 候选，不按名称筛选。类型缺失、为零或为通用 HID 时，允许依据完整／不完整的 16 位或蓝牙基础 128 位 UUID 列表中的 0x1812 发现设备；不覆盖明确不同的类型。专用 BLE 发现入口保留白名单、信号强度和用户选择门槛，不放宽经典蓝牙的接纳范围。仅由 UUID 发现的候选采用显示配对码的能力，让键盘可请求 PIN。在就绪前，通过有界描述符检查确认顶层 Gamepad、Joystick 或 Keyboard Application 集合包含数据 Input；纯鼠标、纯媒体遥控、畸形或支持类型冲突的描述符被拒绝。选择第一个符合要求的 HID 服务，在解析器初始化前复制其描述符，并忽略其他服务或分类完成前的报告。2026-10-09 后续修复已替换标准 BLE Android／通用／Xbox 输入解析，保护真实描述符不被 Xbox 名称匹配覆盖，新增 32 位 UUID 列表与 16 位 Service Data 发现，并处理连接／配对失败恢复。映射限制、修改文件和 FC 交接见 [BLE 输入修复](ble-input-fc-handoff.zh_CN.md)。已知类型的配对能力配置保持不变。类型和 HID UUID 都缺失、不支持／存在歧义的报告描述符，以及设备信息服务失败，仍不在本次发现修复范围内。
+
+1.5 另从用户本地 `E:/code/folotoy-fc` 项目移植有序完整状态输入队列（2026-10-09）：`gb_input` 状态机、手柄报告入队／逐帧读取与生命周期重置语义。五类主机场景适配在 `tests/test_gb_input_buffer.c`。限制和依据见[跨项目记录](ble-input-fc-handoff.zh_CN.md)，FC 验收不能代替 GameBoy 实体兼容性验证。
+
+1.6 参考本地 FC 项目 `tools/test_simulator.py` 的 PassportSim 回执／ELF／产物校验流程，适配独立 GB 入口和本地 ROM 差分测试。实际使用 FC 工作区内已安装的 PassportSim 1.0.1，FC 文件只读。GB 专用内存／绘制改动、复现方法与建模边界见[性能记录](gameboy-performance.zh_CN.md)。
 
 ## 反馈手柄的协议
 
@@ -33,3 +37,7 @@ LCD 开关行为依据 [Pan Docs LCD Control](https://github.com/gbdev/pandocs/b
 这四款反馈手柄均未取得实物测试。具备 BLE 传输能力不等于配对、报告解析及重连已通过。本固件不支持 USB／2.4 GHz 接收器；公开资料仅适用于所标识的版本，不能扩展到所有同名产品。
 
 当前集成目标为 ESP-IDF 5.5.3。代码来源与编译成功都不能证明实体键盘兼容性或具体游戏验收通过，实机结果单独记录。
+
+## PassportSim 1.7
+
+只读参考 FC 本地 PassportSim 1.0.1 自动化流程；使用隔离 GB_SIM_TEST 入口和真实 GB 核心、用户本地 ROM，不在生产入口注入按键。工具与证据：[Performance](gameboy-performance.zh_CN.md).

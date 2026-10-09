@@ -4,6 +4,16 @@
 
 本产品采用仓库根目录 `partitions.csv` 中的五个分区，不采用上游三分区模板。清洁版镜像长度**恰好为 8,388,608 字节（8 MiB）**：`0x0` 为 ESP32-C3 引导程序，`0x8000` 为分区表，`0x10000` 为应用，`0x710000` 为可重复生成的初始 SPIFFS 镜像；其余字节全部为 `0xFF`。尤其是 NVS（`0x9000`–`0xEFFF`）、PHY（`0xF000`–`0xFFFF`）及整个 ROM 区（`0x310000`–`0x70FFFF`）不包含设置、手柄绑定或游戏。初始存档文件系统只包含公开的 `assets/initial_saves/README.txt`，没有游戏进度。
 
+## 1.7 累计更新说明（2026-10-10）
+
+- 预装经典游戏由 2 款扩充至 14 款：超级马里奥大陆、星之卡比、口袋妖怪红、魂斗罗、恶魔城漆黑前奏曲、忍者龙剑传、忍者蛙、龙珠 Z 悟空飞翔传、宇宙巡航机、超级机器人大战、哆啦 A 梦赛车、异型战机、坦克大战、大力工头阿源君。名单和 ROM 哈希见[经典选集](../gameboy-classics-1.5.zh_CN.md)。
+- 新增标准 BLE HID 解析，适配常见 8/12 键及 Android 布局；保持分报告按键状态，支持左摇杆方向，使用真实 BLE 描述符，扩展广播识别并改善连接失败及旧绑定恢复。
+- 改进多按键输入缓存，减少保持方向时连续短按 A/B 的遗漏；暂停、退出或断连时清空积压，进入和恢复游戏时等待松键。
+- 将紧凑的 CPU 解释器及常用读取路径放入指令 RAM，减少重复背景／精灵绘制及窗口覆盖区域的无效计算，并按负载调整画面更新频率。
+- 卡比、宇宙巡航机实测画面和声音明显更流畅；本轮模拟速度为 59.6–59.8 fps，显示更新为 14.9–29.8 fps。不同游戏表现仍有差异，不保证恒定满帧或全部游戏／手柄兼容。
+
+预装游戏只包含在本地十四游戏完整安装包中；仅应用升级不会新增游戏。完整安装从 0x0 写入会覆盖原有数据；当前兼容分区的应用升级只写 0x10000。GitHub 只提交源码、测试和文档，不上传 ROM、预装固件或设备日志。
+
 ## 构建与校验
 
 激活 ESP-IDF 5.5.3，以 `esp32c3` 为目标构建。上游完整门禁为 `./tools/validate.sh`；其中固件模式还会生成 `build/FoloToy-GameBoy-8MB-clean.bin` 及 `.sha256` 校验文件。在 Windows 上执行 `idf.py build` 后，可用以下命令生成同样的镜像：
@@ -18,14 +28,14 @@ Get-FileHash -Algorithm SHA256 -LiteralPath 'artifacts\releases\FoloToy-GameBoy-
 
 ## 可选预装游戏
 
-当前本地 1.4 固件包为 `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`，同目录提供 `.bin.sha256` 文件。它使用 `build/ble-discovery-fixes` 中含 BLE 发现修复并重建为 1.4 的应用，包含用户提供的两款游戏。COM14 的启动检查使用的是此前包含相同 BLE 修复的 1.3 清洁版；1.4 预装镜像尚未烧录或公开发布。见 [1.4 更新日志](../../CHANGELOG.zh_CN.md)及[验证记录](../gameboy-validation.zh_CN.md)。
+当前经典版为 `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`，使用 `build/release-1.7` 的正式应用（`GB_SIM_TEST=OFF`）。14 款清单和分区容量沿用[1.5 选集](../gameboy-classics-1.5.zh_CN.md)，ROM 分区逐字节相同。`FoloToy-GameBoy-1.7-app.bin` 用于兼容分区的仅应用更新（`0x10000`）。1.7 已通过仅应用写入／启动检查，用户确认画面与声音明显改善。旧包保留，下方为历史双游戏打包示例。
 
 通过重复的 `--rom` 参数，将本地游戏放入普通可写 ROM 分区。原文件名过长时，按相同顺序为每个 ROM 指定一个 `--rom-name`（各不超过 31 个 UTF-8 字节）；不改名、不修改源文件。不指定 `--output` 时，预装模式生成 `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`；不传 `--rom` 仍生成 CI 使用的无游戏清洁版。
 
 ```powershell
 $redRom = 'E:\BaiduNetdiskDownload\GB ROM\口袋妖怪红(精灵宝可梦红) (简)(修正版+完美LOGO)(sss888+RickyL1213+fciq)(8Mb).gb'
 $marioRom = 'E:\BaiduNetdiskDownload\GB ROM\超级马里奥大陆(简)(v2.0)(星夜之幻)(0.5Mb).gb'
-$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/ble-discovery-fixes', '--rom', $redRom, '--rom-name', '口袋妖怪红', '--rom', $marioRom, '--rom-name', '超级马里奥大陆', '--output', 'artifacts/releases/FoloToy-GameBoy-1.4-full.bin')
+$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/release-1.5', '--rom', $redRom, '--rom-name', '口袋妖怪红', '--rom', $marioRom, '--rom-name', '超级马里奥大陆', '--output', 'artifacts/releases/FoloToy-GameBoy-1.5-full.bin')
 & python.exe @packageArgs
 & python.exe @packageArgs --verify
 ```

@@ -2,7 +2,31 @@
 
 # Game Boy 基准验收
 
-## 当前 1.4 状态（2026-10-04）
+## 1.7 实机复测与交付（2026-10-10）
+
+1.7 已按明确批准仅更新 COM14 的 0x10000，写入校验、分区匹配、版本及 35 秒启动检查通过；游戏、存档、设置和配对分区未写入。240 秒观察捕获 12 个窗口，覆盖卡比和宇宙巡航机：模拟 59.6–59.8 fps、显示 14.9–29.8 fps，声音开启且输出采样递增，未报告崩溃、音频／显示丢块或输入积压丢弃。用户明确反馈“流畅度大幅改善，声音流畅也改善了，可以听到了”。这确认本轮体验改善，不是全部游戏、全部手柄或恒定显示帧率的保证。
+
+Build：PASS，ESP-IDF 5.5.3，正式入口 GB_SIM_TEST=OFF；应用 2,520,064 / 3,145,728 字节，8 MiB 完整镜像与独立校验通过，14 游戏 ROM 分区与 1.5 逐字节相同。
+
+Host tests：PASS，28 组／0 失败，未变化的 6 组补充检查复用此前有效结果；14 款各 3,600 帧、旧新版配对三轮，累计画面、PCM、CPU 与完整 RAM 状态哈希一致。
+
+Simulator：卡比和宇宙巡航机各 6 组／0 失败，均运行 1,800 帧并目视确认截图进入关卡，末尾 PCM 峰值分别 26,740 和 18,620。隔离入口不测 BLE 或真实硬件性能。
+
+Device tests：写入／启动 PASS；本轮用户画面及声音体验确认改善。Unverified：全部游戏完整流程、全部手柄矩阵、严格同场景帧率基准、长时间内存稳定性及音频欠载仪器测量。
+
+[Performance](gameboy-performance.zh_CN.md).
+
+## 1.6 性能修订（2026-10-09）
+
+正式构建及镜像校验通过；28 组定向测试、14 游戏差分对照和 6 组 PassportSim 检查通过。1.6 后续实机未达到用户期望，已由上方 1.7 实测记录接续。虚拟机固定 CPI、隔离无线，不代替硬件验收。详见[性能证据](gameboy-performance.zh_CN.md)。下方 1.5 的“当前”仅指当时交付。
+
+## 1.5 输入与显示修复（2026-10-09）
+
+当前应用为 `build/release-1.5/FoloToy-AI-Passport.bin`，最新完整包为 `artifacts/releases/FoloToy-GameBoy-1.5-14games-full.bin`。已通过 COM14 完整写入校验、14 项目录回读和 35 秒启动检查；具体游戏／多键／声音验收单独记录。清单和边界见[经典游戏包](gameboy-classics-1.5.zh_CN.md)及[验证记录](gameboy-validation.zh_CN.md)。历史包保留，FC 未修改。
+
+真机需覆盖保持左／右时连续点按 A/B、A+B 后分别松开、按住动作键时摇杆回中，以及进入／暂停／恢复／息屏／断连后不残留按键。结合 `input backlog discarded` 日志与实际响应验收，有界缓存可能增加模拟帧延迟。用同一 ROM／场景核对显示和声音表现。FC 手柄验收仅为参考，不能代替 GameBoy 验收；用户此前 G87 V2 键盘反馈未提供固件版本，也未逐项记录上述场景。
+
+## 已归档 1.4 状态（2026-10-04）
 
 当前本地应用为 `build/ble-discovery-fixes/FoloToy-AI-Passport.bin`，完整固件为 `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`。1.4 新增四项 BLE 发现修复：取消 Xbox 名称限制、接纳 Joystick 类型、识别 HID 服务 UUID、合并广播／扫描响应，保留 1.3 功能及存储／显示修复。参见[操作说明](../../README.zh_CN.md#蓝牙键盘)、[固件说明](release/gameboy-firmware.zh_CN.md)、[手柄协议证据](gameboy-sources.zh_CN.md#反馈手柄的协议)及[各构建验证记录](gameboy-validation.zh_CN.md)。
 

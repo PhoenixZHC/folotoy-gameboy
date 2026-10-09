@@ -24,6 +24,7 @@ set(srcs
          "parser/uni_hid_parser_ds4.c"
          "parser/uni_hid_parser_ds5.c"
          "parser/uni_hid_parser_generic.c"
+         "parser/uni_hid_parser_standard.c"
          "parser/uni_hid_parser_icade.c"
          "parser/uni_hid_parser_keyboard.c"
          "parser/uni_hid_parser_mouse.c"

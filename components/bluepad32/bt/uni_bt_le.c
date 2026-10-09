@@ -93,7 +93,16 @@ static void hog_connect(bd_addr_t addr, bd_addr_type_t addr_type) {
     gap_stop_scan();
     logi("BLE scan -> 0\n");
 
-    gap_connect(addr, addr_type);
+    uint8_t status = gap_connect(addr, addr_type);
+    if (status != ERROR_CODE_SUCCESS) {
+        loge("BLE connection request failed: %#x\n", status);
+        uni_hid_device_t* device = uni_hid_device_get_instance_for_address(addr);
+        if (device) {
+            uni_hid_device_on_connected(device, false);
+            uni_hid_device_delete(device);
+        }
+        if (is_scanning) gap_start_scan();
+    }
 }
 
 static void resume_scanning_hint(void) {
@@ -120,6 +129,8 @@ static void hog_disconnect(hci_con_handle_t con_handle) {
 
     if (gap_get_connection_type(con_handle) != GAP_CONNECTION_INVALID)
         gap_disconnect(con_handle);
+    else
+        gap_connect_cancel();
 
     resume_scanning_hint();
 }
@@ -213,17 +224,20 @@ static void uni_hids_client_packet_handler(uint8_t packet_type, uint16_t channel
                         logi("Client notifications enabled for for hids_cid=%d\n", hids_cid);
 #endif
 
-                    if (device->ble_hid_service_filter) {
+                    // Select the actual input map before choosing a parser for
+                    // every BLE peer, not only UUID-only discovery candidates.
+                    {
                         uint8_t count = gattservice_subevent_hid_service_connected_get_num_instances(packet);
                         for (uint8_t i = 0; i < count; i++) {
                             const uint8_t* map = hids_client_descriptor_storage_get_descriptor_data(hids_cid, i);
                             uint16_t len = hids_client_descriptor_storage_get_descriptor_len(hids_cid, i);
-                            if (len > HID_MAX_DESCRIPTOR_LEN) continue;
+                            if (!map || !len || len > HID_MAX_DESCRIPTOR_LEN) continue;
                             uint16_t cod = uni_bt_le_hid_cod(map, len);
                             if (!cod) continue;
                             uni_hid_device_set_cod(device, cod);
                             uni_hid_device_set_hid_descriptor(device, map, len);
                             device->ble_hid_service_index = i;
+                            device->ble_hid_service_filter = true;
                             break;
                         }
                         if (device->ble_hid_service_index == UINT8_MAX) {
@@ -241,6 +255,9 @@ static void uni_hids_client_packet_handler(uint8_t packet_type, uint16_t channel
                     break;
                 default:
                     loge("HID service client connection failed, err 0x%02x.\n", status);
+                    hids_cid = gattservice_subevent_hid_service_connected_get_hids_cid(packet);
+                    device = uni_hid_device_get_instance_for_hids_cid(hids_cid);
+                    if (device) hog_disconnect(device->conn.handle);
                     break;
             }
             break;
@@ -532,7 +549,7 @@ static void uni_sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t
                  bd_addr_to_str(addr));
             break;
         case SM_EVENT_REENCRYPTION_STARTED:
-            sm_event_reencryption_complete_get_address(packet, addr);
+            sm_event_reencryption_started_get_address(packet, addr);
             logi("Bonding information exists for addr type %u, identity addr %s -> start re-encryption\n",
                  sm_event_reencryption_started_get_addr_type(packet), bd_addr_to_str(addr));
             break;
@@ -552,15 +569,24 @@ static void uni_sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t
                     hog_disconnect(con_handle);
                     break;
                 case ERROR_CODE_PIN_OR_KEY_MISSING:
+                case ERROR_CODE_AUTHENTICATION_FAILURE:
+                    device = uni_hid_device_get_instance_for_connection_handle(con_handle);
+                    if (!device || device->ble_repair_attempted) {
+                        hog_disconnect(con_handle);
+                        break;
+                    }
+                    device->ble_repair_attempted = true;
                     logi("Re-encryption failed, bonding information missing\n\n");
                     logi("Assuming remote lost bonding information\n");
                     logi("Deleting local bonding information and start new pairing...\n");
                     sm_event_reencryption_complete_get_address(packet, addr);
-                    type = sm_event_reencryption_started_get_addr_type(packet);
+                    type = sm_event_reencryption_complete_get_addr_type(packet);
                     gap_delete_bonding(type, addr);
                     sm_request_pairing(sm_event_reencryption_complete_get_handle(packet));
                     break;
                 default:
+                    loge("Re-encryption failed, status=%#x\n", sm_event_reencryption_complete_get_status(packet));
+                    hog_disconnect(con_handle);
                     break;
             }
             break;
@@ -594,10 +620,7 @@ static void uni_sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t
                     break;
             }
 
-            // TODO: Double check
-            // Do not disconnect. Sometimes it appears as "failure" although
-            // the connection as Ok (???)
-            // hog_disconnect(device->conn.handle);
+            if (status != ERROR_CODE_SUCCESS) hog_disconnect(con_handle);
             break;
 
         default:
@@ -615,6 +638,7 @@ static void uni_sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t
         status = device_information_service_client_query(con_handle, uni_device_information_packet_handler);
         if (status != ERROR_CODE_SUCCESS) {
             loge("Failed to set device information client: %#x\n", status);
+            hog_disconnect(con_handle);
         }
     }
 }
@@ -631,6 +655,17 @@ void uni_bt_le_on_hci_event_le_meta(const uint8_t* packet, uint16_t size) {
 
     switch (subevent) {
         case HCI_SUBEVENT_LE_CONNECTION_COMPLETE:
+            if (hci_subevent_le_connection_complete_get_status(packet) != ERROR_CODE_SUCCESS) {
+                loge("BLE link failed: %#x\n", hci_subevent_le_connection_complete_get_status(packet));
+                // Failed events need not contain a valid address or handle.
+                device = uni_hid_device_get_first_device_with_state(UNI_BT_CONN_STATE_DEVICE_DISCOVERED);
+                if (device && device->conn.protocol == UNI_BT_CONN_PROTOCOL_BLE) {
+                    uni_hid_device_on_connected(device, false);
+                    uni_hid_device_delete(device);
+                }
+                resume_scanning_hint();
+                break;
+            }
             hci_subevent_le_connection_complete_get_peer_address(packet, event_addr);
             device = uni_hid_device_get_instance_for_address(event_addr);
             if (!device) {

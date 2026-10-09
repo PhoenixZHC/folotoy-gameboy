@@ -8,6 +8,9 @@
 esp_err_t gamepad_start(void);
 void gamepad_set_scanning(bool enabled);
 pad_sample_t gamepad_snapshot(void);
+// Reset on entry/resume; disable and clear on pause/exit. Wait for release.
+void gamepad_set_gameplay(bool enabled);
+pad_sample_t gamepad_frame_snapshot(void);
 gamepad_discovery_t gamepad_discovery_snapshot(void);
 // Refresh discovery on explicit pairing entry; retain an active reconnect target.
 void gamepad_begin_discovery(void);

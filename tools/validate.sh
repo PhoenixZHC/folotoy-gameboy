@@ -57,6 +57,10 @@ run_static_checks() {
         -o "${test_dir}/test_gb_input"
     "${test_dir}/test_gb_input"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_gb_input_buffer.c main/gb_input.c \
+        -o "${test_dir}/test_gb_input_buffer"
+    "${test_dir}/test_gb_input_buffer"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
         tests/test_gb_keyboard_hid.c main/gb_input.c \
         components/bluepad32/parser/uni_hid_parser.c \
@@ -65,6 +69,19 @@ run_static_checks() {
         components/btstack/src/btstack_hid_parser.c components/btstack/src/btstack_util.c \
         -o "${test_dir}/test_gb_keyboard_hid"
     "${test_dir}/test_gb_keyboard_hid"
+    "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
+        -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
+        tests/test_gb_gamepad_hid.c components/bluepad32/parser/uni_hid_parser.c \
+        components/bluepad32/parser/uni_hid_parser_standard.c \
+        components/bluepad32/controller/uni_gamepad.c \
+        components/btstack/src/btstack_hid_parser.c components/btstack/src/btstack_util.c \
+        -o "${test_dir}/test_gb_gamepad_hid"
+    "${test_dir}/test_gb_gamepad_hid"
+    "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror -DCONFIG_BLUEPAD32_MAX_DEVICES=1 \
+        -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
+        tests/test_bt_le_recovery.c components/bluepad32/bt/uni_bt_le_hid.c \
+        components/btstack/src/btstack_util.c -o "${test_dir}/test_bt_le_recovery"
+    "${test_dir}/test_bt_le_recovery"
     for target in ESP32C3 ESP32; do
         "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
             -DCONFIG_BLUEPAD32_MAX_DEVICES=1 "-DCONFIG_IDF_TARGET_${target}=1" \

@@ -1,5 +1,10 @@
+if(GB_SIM_TEST)
+    set(GB_ENTRY "../tests/gb_sim_main.c")
+else()
+    set(GB_ENTRY "game_main.c")
+endif()
 idf_component_register(
-    SRCS "game_main.c" "gamepad.c" "gamepad_discovery.c" "gb_input.c"
+    SRCS ${GB_ENTRY} "gamepad.c" "gamepad_discovery.c" "gb_input.c"
          "gb_display.c" "gb_pixels.c" "gb_storage.c" "gb_saves.c"
          "ui_font.c" "gb_name.c" "gb_web.c" "gb_audio.c"
          "gb_audio_pacing.c" "gb_frame_pacing.c" "gb_boot.c"

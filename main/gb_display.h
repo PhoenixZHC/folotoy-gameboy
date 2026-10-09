@@ -15,6 +15,8 @@ esp_err_t gb_display_color_frame(const uint8_t *indices,
                                  const uint8_t *bg_palette, const uint8_t *obj_palette);
 esp_err_t gb_display_submit_frame(const uint8_t *packed_frame, bool enlarged,
                                   bool *queued);
+esp_err_t gb_display_idle(bool *idle);
+uint32_t gb_display_completed(void);
 esp_err_t gb_display_lines(const char *const *lines, size_t count);
 esp_err_t gb_display_game_hint(const char *text);
 esp_err_t gb_display_footer(const char *text, uint32_t scroll_px);

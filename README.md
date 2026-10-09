@@ -2,23 +2,29 @@
 
 # Game Boy for FoloToy AI Passport
 
+Version **1.7** (2026-10-10) is installed on COM14 as an application-only update. The user confirms substantially improved motion and smoother audible sound. The CPU interpreter and short read path now run from instruction RAM, retaining the 1.5 input fixes and 1.6 rendering changes. [Performance](docs/development/gameboy-performance.md).
+
+Gameplay consumes one changed state per emulation frame; menus read the live state. The buffer holds at most 16 states, discards a backlog older than 100 ms or beyond capacity with a warning, and clears on pause, exit or disconnect. Entry/resume waits for all input to be released. Dense input can be delayed across frames, and severe stalls can still discard taps; 100 ms is an event-age limit, not an end-to-end latency guarantee.
+
 Power-on opens the home menu directly. Each game launch recreates the original monochrome Game Boy logo descent and two-note chime after ROM/save checks and before gameplay; resuming a paused game does not replay it. The chime follows saved volume/mute settings. This is a rendered recreation, not execution of Nintendo's boot ROM; exact LCD colour and speaker timbre are not guaranteed. Sequence reference: [Pan Docs](https://github.com/gbdev/pandocs/blob/master/src/Power_Up_Sequence.md).
 
 During play, hold board OK, select **Screen off**, and press OK. Emulation pauses, LCD/backlight and codec output are disabled, and RAM progress is retained. A fresh press of any board function button or a reported controller button wakes the display; release it to resume without forwarding the wake press to the game. If the controller disconnected, the pause page waits for reconnection. This is screen-off standby, not deep sleep. The hardware power button still controls power and cannot replace this software action.
 
-This checkout ports the SUMI Game Boy core to AI Passport (ESP32-C3, 8 MB Flash, no PSRAM, ST7789P3 240×320 display). Bluepad32 and BTstack receive Xbox 1914 and standard Bluetooth LE keyboard input; keyboard hardware compatibility remains unverified. The application has a Chinese bitmap menu, a Wi-Fi game manager, and a four-channel Game Boy APU feeding the ES8311 speaker. The user confirmed Pokemon Blue display/control and ordinary save recovery, normal Digimon/Rainbow Fighter play after the white-screen fix, and noticeably smoother Kirby play. Complex scenes can still run below original speed and vary the music tempo. No commercial ROM is included in the repository.
+This checkout ports the SUMI Game Boy core to AI Passport (ESP32-C3, 8 MB Flash, no PSRAM, ST7789P3 240×320 display). Bluepad32 and BTstack receive Xbox 1914 and standard Bluetooth LE keyboard input; the user previously reported normal MCHOSE G87 V2 keyboard use, but the tested firmware version was not recorded and 1.5 regression remains pending. The application has a Chinese bitmap menu, a Wi-Fi game manager, and a four-channel Game Boy APU feeding the ES8311 speaker. The user confirmed Pokemon Blue display/control and ordinary save recovery, normal Digimon/Rainbow Fighter play after the white-screen fix, and noticeably smoother Kirby play. Complex scenes can still run below original speed and vary the music tempo. No commercial ROM is included in the repository.
 
 The device's home, pairing, game list, management, settings, pause and error screens share a four-shade DMG LCD theme. Monochrome game pixels use the same four green shades, including a light green background; color games retain their own palettes. The battery indicator remains at the top right and button guidance remains along the bottom. The management web page follows the same palette and pixel-border treatment.
 
 The 8 MB layout is NVS at `0x9000` (24 KiB), PHY at `0xf000` (4 KiB), one game app at `0x10000` (3 MiB), ROMs at `0x310000` (4 MiB), and SPIFFS saves at `0x710000` (960 KiB). There is no official firmware, OTA, or recovery partition. Installing this table replaces the old layout. The initial saves image must be written only on first installation because writing it again destroys existing saves. The [clean 8 MiB release image and installation guide](docs/development/release/gameboy-firmware.md) cover blank-device installation. The image contains no games, saves, settings, or controller keys; do not use it to update an already configured device.
 
-An optional [preloaded first-install image](docs/development/release/gameboy-firmware.md#optional-preinstalled-games) can include local ROMs. They use the same writable catalog as uploaded games: rename/delete them in Game management, reuse freed space, and keep deletions across restarts. The local 1.4 image includes the user-supplied Chinese Pokemon Red and Super Mario Land; the default clean/CI image remains empty. Reinstalling a full image overwrites existing games, saves, settings and bonds.
+The current classic selection preinstalls fourteen games; see the [game list and screening evidence](docs/development/gameboy-classics-1.5.md). They share the writable catalog with uploads, support rename/delete, and do not return after deletion and restart. The old two-game package remains available; clean/CI images remain empty. Reinstalling a full image overwrites games, saves, settings and bonds.
 
 Game management rejects delete/rename requests from an outdated list and refreshes the page before the user tries again. If a directory write cannot be confirmed, management asks for a device restart to check the result; further changes and game launches are blocked until the directory is read successfully. Existing saves are retained while the result is uncertain.
 
 ## Build and prepare images
 
-The current local package is `artifacts/releases/FoloToy-GameBoy-1.4-full.bin` (8 MiB), with an adjacent `.bin.sha256` checksum. It contains the repaired 1.4 application and both preinstalled games. See the [bilingual changelog](docs/CHANGELOG.md) and [validation record](docs/development/gameboy-validation.md) for this build's results and remaining device checks. Generated firmware and ROMs are excluded from Git.
+The current full image is `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin` (8 MiB), with checksum and game manifest. Its fourteen-game ROM partition is byte-identical to 1.5. `FoloToy-GameBoy-1.7-app.bin` is an application-only update at `0x10000` for the compatible Game Boy partition layout. Generated firmware and ROMs stay outside Git; see [validation](docs/development/gameboy-validation.md).
+
+The local preinstalled selection expands from two games to fourteen. See the [cumulative update notes](docs/development/release/gameboy-firmware.md) for the full list and input/performance changes. Application-only updates do not install games.
 
 Activate ESP-IDF 5.5.3 in PowerShell, then run `idf.py --version` and `idf.py build`. The resulting files are `build/bootloader/bootloader.bin`, `build/partition_table/partition-table.bin`, `build/FoloToy-AI-Passport.bin`, and `build/saves.bin`. `idf.py flash` does not write the saves image. Use legally obtained DMG-compatible `.gb` files:
 
@@ -35,9 +41,9 @@ On a **first installation only**, after reviewing the device and data impact, `i
 
 ## Controls and boundaries
 
-Settings displays the firmware version in its bottom information row, including while adjusting an option. The current version is **1.4**, incremented from 1.3 for the BLE discovery fixes. The single source is `PROJECT_VER` in the root `CMakeLists.txt`; the screen reads the built application descriptor, keeping it aligned with startup logs. This version assignment does not publish a release or establish controller/keyboard hardware compatibility.
+Settings displays the firmware version. This performance revision increments **1.5 to 1.7**. `PROJECT_VER` in the root `CMakeLists.txt` remains the single source; the UI reads the compiled application descriptor. This does not publish a release or establish new device acceptance.
 
-Controller model and transport limits are documented in the [reported-controller protocol table](docs/development/gameboy-sources.md#reported-controller-protocols). The four reported models have not been physically tested with 1.4; the Ultimate 2C name covers different Bluetooth transports.
+Controller model and transport limits are documented in the [reported-controller protocol table](docs/development/gameboy-sources.md#reported-controller-protocols). The four reported models have not been physically tested with 1.5; the Ultimate 2C name covers different Bluetooth transports.
 
 ### Bluetooth keyboards
 

@@ -6,6 +6,7 @@
 #include "btstack.h"
 #include "btstack_run_loop.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "uni.h"
@@ -14,6 +15,7 @@
 static const char *TAG = "gamepad";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static pad_sample_t s_sample;
+static gb_input_buffer_t s_input_buffer;
 static gamepad_discovery_t s_discovery;
 static uni_hid_device_t *s_owner;
 static bool s_started;
@@ -75,6 +77,7 @@ static void update_scan_policy(void) {
 static void set_sample(pad_sample_t sample) {
     taskENTER_CRITICAL(&s_lock);
     s_sample = sample;
+    gb_input_buffer_push(&s_input_buffer, sample, esp_timer_get_time());
     taskEXIT_CRITICAL(&s_lock);
 }
 
@@ -82,6 +85,26 @@ pad_sample_t gamepad_snapshot(void) {
     taskENTER_CRITICAL(&s_lock);
     pad_sample_t copy = s_sample;
     taskEXIT_CRITICAL(&s_lock);
+    return copy;
+}
+
+void gamepad_set_gameplay(bool enabled) {
+    taskENTER_CRITICAL(&s_lock);
+    gb_input_buffer_reset(&s_input_buffer, s_sample, enabled);
+    taskEXIT_CRITICAL(&s_lock);
+}
+
+pad_sample_t gamepad_frame_snapshot(void) {
+    static uint32_t reported_drops;
+    taskENTER_CRITICAL(&s_lock);
+    pad_sample_t copy = gb_input_buffer_take(&s_input_buffer, esp_timer_get_time());
+    uint32_t drops = s_input_buffer.dropped;
+    taskEXIT_CRITICAL(&s_lock);
+    if (drops != reported_drops) {
+        ESP_LOGW(TAG, "input backlog discarded: %lu states (age/capacity limit)",
+                 (unsigned long)(drops - reported_drops));
+        reported_drops = drops;
+    }
     return copy;
 }
 
@@ -243,6 +266,7 @@ static void controller_data(uni_hid_device_t *device, uni_controller_t *ctl) {
         .any_button = gp->buttons || gp->misc_buttons || gp->dpad ||
                       gp->brake > 64 || gp->throttle > 64,
     };
+    gb_input_left_stick(&next, gp->axis_x, gp->axis_y);
     set_sample(next);
 }
 

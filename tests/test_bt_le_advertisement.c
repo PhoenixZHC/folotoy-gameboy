@@ -108,6 +108,10 @@ static void test_packet_bounds(void) {
 static void test_hid_service_fallback(void) {
     const uint8_t hid[] = {5, 0x03, 0x0f, 0x18, 0x12, 0x18};
     const uint8_t partial_hid[] = {3, 0x02, 0x12, 0x18};
+    const uint8_t hid32[] = {5, 0x05, 0x12, 0x18, 0, 0};
+    const uint8_t service_data[] = {4, 0x16, 0x12, 0x18, 0x01};
+    const uint8_t bad32[] = {4, 0x05, 0x12, 0x18, 0};
+    const uint8_t bad_service[] = {2, 0x16, 0x12};
     const uint8_t hid128[] = {17, 0x07,
         0xfb,0x34,0x9b,0x5f,0x80,0,0,0x80,0,0x10,0,0,0x12,0x18,0,0};
     const uint8_t generic[] = {3, 0x19, 0xc0, 3};
@@ -158,6 +162,13 @@ static void test_hid_service_fallback(void) {
     assert(!uni_bt_le_adv_cod(entry));
     entry = uni_bt_le_adv_observe(&cache, address, 0, generic, sizeof(generic), 6005);
     assert(!uni_bt_le_adv_cod(entry));
+    assert(!uni_bt_le_adv_observe(&cache, address, 0, bad32, sizeof(bad32), 6006));
+    assert(!uni_bt_le_adv_observe(&cache, address, 0, bad_service, sizeof(bad_service), 6007));
+    entry = uni_bt_le_adv_observe(&cache, address, 0, hid32, sizeof(hid32), 6008);
+    assert(uni_bt_le_adv_cod(entry) == 0x0500);
+    uni_bt_le_adv_reset(&cache);
+    entry = uni_bt_le_adv_observe(&cache, address, 0, service_data, sizeof(service_data), 6009);
+    assert(uni_bt_le_adv_cod(entry) == 0x0500);
 }
 
 int main(void) {

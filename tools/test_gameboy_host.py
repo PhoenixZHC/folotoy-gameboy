@@ -21,7 +21,15 @@ def main():
         ('bt_le_advertisement', ['components/bluepad32/bt/uni_bt_le_advertisement.c',
                                  'main/gamepad_discovery.c']),
         ('bt_le_hid', ['components/bluepad32/bt/uni_bt_le_hid.c']),
+        ('bt_le_recovery', ['components/bluepad32/bt/uni_bt_le_hid.c',
+                            'components/btstack/src/btstack_util.c']),
         ('gb_input', ['main/gb_input.c']),
+        ('gb_input_buffer', ['main/gb_input.c']),
+        ('gb_gamepad_hid', ['components/bluepad32/parser/uni_hid_parser.c',
+                            'components/bluepad32/parser/uni_hid_parser_standard.c',
+                            'components/bluepad32/controller/uni_gamepad.c',
+                            'components/btstack/src/btstack_hid_parser.c',
+                            'components/btstack/src/btstack_util.c']),
         ('gb_keyboard_hid', ['main/gb_input.c',
                              'components/bluepad32/parser/uni_hid_parser.c',
                              'components/bluepad32/parser/uni_hid_parser_keyboard.c',
@@ -67,9 +75,11 @@ def main():
             command += ['-Wno-unused-parameter']
         if name in ('bt_le_advertisement', 'bt_le_hid'):
             command += ['-Icomponents/bluepad32/include']
-        if name == 'gb_keyboard_hid':
+        if name in ('gb_keyboard_hid', 'gb_gamepad_hid', 'bt_le_recovery'):
             command += ['-Itests/keyboard_stubs', '-Icomponents/bluepad32/include',
                         '-Icomponents/btstack/src']
+        if name == 'bt_le_recovery':
+            command += ['-DCONFIG_BLUEPAD32_MAX_DEVICES=1']
         if name == 'gb_audio':
             command += ['-DMINIGB_APU_AUDIO_FORMAT_S16SYS=1', '-DAUDIO_SAMPLE_RATE=16000']
         command += [f'tests/test_{name}.{"cpp" if cpp else "c"}', *sources,

@@ -17,7 +17,7 @@
 
 ## Game Boy 固件
 
-- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.4 验收范围与历史实机结果。
+- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.7 验收范围与历史实机结果。
 - [gameboy-validation.zh_CN.md](gameboy-validation.zh_CN.md)：构建、主机测试、设备测试及固件包证据。
 - [gameboy-sources.zh_CN.md](gameboy-sources.zh_CN.md)：第三方来源、许可证及本地适配。
 
@@ -46,3 +46,7 @@
 - [publish-to-community.zh_CN.md](release/publish-to-community.zh_CN.md)：发布到社区说明（把当前固件发布到 AI Passport 社区市场）。
 - [project-completion.zh_CN.md](release/project-completion.zh_CN.md)：项目开发完成流程说明（一组可选收尾动作）。
 - [file-issues.zh_CN.md](release/file-issues.zh_CN.md)：提交 issue 说明（把建议作为上游 GitHub issue 提交）。
+
+- [gameboy-classics-1.5.zh_CN.md](gameboy-classics-1.5.zh_CN.md)：经典 14 游戏完整包与实测。
+
+- [gameboy-performance.zh_CN.md](gameboy-performance.zh_CN.md): 1.7 性能优化、虚拟机与实机验证。

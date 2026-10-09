@@ -5,9 +5,13 @@ English | [简体中文](README.zh_CN.md)
 FoloToy AI Passport is open wearable AI hardware. This repository is the development baseline for the device. It keeps the **hardware facts, stable interfaces, resource boundaries, reference implementations, and validation methods** needed to build applications in one place.
 
 This checkout contains a [Game Boy firmware port](../README.md). The hardware reference below describes the upstream AI Passport baseline; its demo application and partition layout have been replaced in this checkout.
-The current local firmware is **1.4**, adding four BLE discovery fixes: removal of the Xbox-name filter, Joystick admission, HID service UUID detection, and merging of advertising/scan-response fields. Existing keyboard controls, green monochrome gameplay, per-game animation and optional deletable preinstalled games remain. The port's [changelog](CHANGELOG.md), [acceptance limits](development/gameboy-acceptance.md), [validation status](development/gameboy-validation.md), [source/license and controller protocol record](development/gameboy-sources.md), and [8 MiB installation guide](development/release/gameboy-firmware.md) are maintained separately. Physical keyboard and reported-controller compatibility remain untested; Bluetooth Classic is unsupported.
+The current local firmware is **1.7**. With explicit approval, only COM14 address 0x10000 was updated to 1.7. Write/hash, partition compatibility, version and 35-second startup checks passed; game, save, settings and pairing partitions were not written. A 240-second observation captured 12 windows across Kirby and Gradius: emulation 59.6–59.8 fps, display 14.9–29.8 fps, audio enabled and output samples increasing, with no reported crashes, audio/display drops or input backlog discards. The user confirmed substantially improved smoothness and smoother audible sound. This accepts the observed experience, not every game/controller or a constant display frame rate. [Performance](development/gameboy-performance.md).
+
+The local preinstalled selection expands from two games to fourteen. See the [cumulative update notes](development/release/gameboy-firmware.md) for the full list and input/performance changes. Application-only updates do not install games.
 
 The repository is organized around the following principles:
+
+The [BLE input fixes and cross-project handoff](development/ble-input-fc-handoff.md) also records the later FC-to-Game Boy input-buffer port. Earlier device results do not validate this build.
 
 - `main` is the smallest complete runnable baseline and an executable description of the current hardware capabilities.
 - `components/bsp` isolates board-level details and exposes stable APIs to applications.
@@ -130,3 +134,7 @@ Repository documentation is organized by function area. `authoritative` document
 GitHub community documents: [CONTRIBUTING.md](../.github/CONTRIBUTING.md), [CODE_OF_CONDUCT.md](../.github/CODE_OF_CONDUCT.md), [SECURITY.md](../.github/SECURITY.md), and [SUPPORT.md](../.github/SUPPORT.md).
 
 > This README describes the product and repository. AI agents must begin with `AGENTS.md` and follow its task-specific routing.
+
+- [Game Boy 1.5 classics](development/gameboy-classics-1.5.md): fourteen-game selection, partition capacity and COM14 testing.
+
+- [Game Boy 1.7](development/gameboy-performance.md): performance work and verification limits.

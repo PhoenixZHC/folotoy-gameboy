@@ -46,4 +46,24 @@ static void check_fetch_boundaries() {
     core.ie_=0; core.pc_=0xffff; core.cpu_step();
     assert(core.pc_==0);
 }
-int main(){for(uint8_t type : {1,5,0x11,0x19}) check_cart(type); check_fetch_boundaries(); puts("ROM mapping: PASS");}
+static void check_ram_boundaries() {
+    std::vector<uint8_t> rom(32768,0),extra(0x6000);
+    GBEmulator core;
+    assert(core.loadRom("test",rom.data(),rom.size()) && core.init());
+    core.writeByte(0xff80,0x3e);core.writeByte(0xff81,0x42);
+    core.writeByte(0xfffe,0xa5);core.writeByte(0xffff,0x1f);
+    assert(core.readByte(0xfffe)==0xa5 && core.readByte(0xffff)==0x1f);
+    core.ime_=false;core.pc_=0xff80;core.cpu_step();
+    assert(core.a_==0x42 && core.pc_==0xff82);
+    core.writeByte(0xcfff,0x11);core.writeByte(0xd000,0x22);core.writeByte(0xdfff,0x33);
+    assert(core.readByte(0xcfff)==0x11 && core.readByte(0xd000)==0x22 && core.readByte(0xdfff)==0x33);
+    assert(core.readByte(0xefff)==0x11 && core.readByte(0xf000)==0x22);
+    core.isCgb_=true;core.wramExtra_=extra.data();core.wramBank_=2;
+    core.writeByte(0xd000,0x44);core.writeByte(0xdfff,0x55);
+    assert(core.readByte(0xcfff)==0x11 && core.readByte(0xd000)==0x44 && core.readByte(0xdfff)==0x55);
+    assert(core.readByte(0xf000)==0x44);
+    core.wramBank_=1;
+    assert(core.readByte(0xd000)==0x22 && core.readByte(0xdfff)==0x33);
+    core.wramExtra_=nullptr;
+}
+int main(){for(uint8_t type : {1,5,0x11,0x19}) check_cart(type); check_fetch_boundaries(); check_ram_boundaries(); puts("ROM mapping: PASS");}

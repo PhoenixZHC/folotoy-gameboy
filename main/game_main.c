@@ -69,6 +69,7 @@ static void settings_load(void) {
     if (nvs_get_u8(handle, "bright", &value) == ESP_OK && value <= 100) s_brightness = value;
     if (nvs_get_u8(handle, "sound", &value) == ESP_OK && value <= 1) s_sound_enabled = value != 0;
     nvs_close(handle);
+    ESP_LOGI(TAG, "settings: sound=%u volume=%u", (unsigned)s_sound_enabled, (unsigned)s_volume);
 }
 
 static bool settings_save(void) {
@@ -81,6 +82,7 @@ static bool settings_save(void) {
     if (e == ESP_OK) e = nvs_commit(handle);
     nvs_close(handle);
     if (e != ESP_OK) ESP_LOGE(TAG, "settings save: %s", esp_err_to_name(e));
+    else ESP_LOGI(TAG, "settings saved: sound=%u volume=%u", (unsigned)s_sound_enabled, (unsigned)s_volume);
     return e == ESP_OK;
 }
 
@@ -273,6 +275,7 @@ static bool screen_off_loop(void) {
 }
 
 static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool connected) {
+    gamepad_set_gameplay(false);
     bool battery = gb_port_has_battery(session);
     const char *items[] = {"继续游戏", battery ? "同步电池存档" : "无电池存档",
                            "设置", "息屏", "退出游戏"};
@@ -456,6 +459,11 @@ static bool prepare_game_screen(void) {
 
 static bool boot_animation(void);
 
+static void destroy_game_session(gb_session_t *session) {
+    gamepad_set_gameplay(false);
+    gb_port_destroy(session);
+}
+
 static void run_game(size_t index) {
     const gb_rom_entry_t *entry = gb_storage_entry(index);
     if (!entry) return;
@@ -468,30 +476,32 @@ static void run_game(size_t index) {
     ESP_LOGI(TAG, "ROM loaded: %.31s", entry->name);
     if (gb_port_has_battery(session)) {
         if (!s_saves_ready) {
-            gb_port_destroy(session); show_error("存档空间不可用"); return;
+            destroy_game_session(session); show_error("存档空间不可用"); return;
         }
         if (gb_saves_load(session, entry->sha256) == GB_SAVE_ERROR) {
-            gb_port_destroy(session); show_error("存档副本损坏"); return;
+            destroy_game_session(session); show_error("存档副本损坏"); return;
         }
     }
     if (!gamepad_snapshot().connected && !pause_game(session, entry->sha256, false)) {
-        gb_port_destroy(session); return;
+        destroy_game_session(session); return;
     }
     if (!boot_animation()) {
-        gb_port_destroy(session); show_error("启动动画失败"); return;
+        destroy_game_session(session); show_error("启动动画失败"); return;
     }
     // Discard board presses collected while the launch animation was playing.
     xQueueReset(s_buttons);
-    bool launch_input_released = false;
     bool audio_enabled = s_sound_enabled && s_volume > 0;
+    ESP_LOGI(TAG, "game audio: enabled=%u sound=%u volume=%u", (unsigned)audio_enabled,
+             (unsigned)s_sound_enabled, (unsigned)s_volume);
     bool color_game = gb_port_is_cgb(session);
     if (audio_enabled && !gb_audio_start(s_volume)) {
-        gb_port_destroy(session); show_error("声音启动失败"); return;
+        destroy_game_session(session); show_error("声音启动失败"); return;
     }
     if (!prepare_game_screen()) {
         if (audio_enabled) gb_audio_stop();
-        gb_port_destroy(session); show_error("屏幕传输失败"); return;
+        destroy_game_session(session); show_error("屏幕传输失败"); return;
     }
+    gamepad_set_gameplay(true);
     int64_t next = esp_timer_get_time();
     int64_t last_save = next;
     int64_t last_report = next;
@@ -509,22 +519,25 @@ static void run_game(size_t index) {
     int64_t audio_epoch = next;
     gb_frame_pacing_t pacing;
     gb_frame_pacing_init(&pacing);
+    uint32_t displayed_at_report = gb_display_completed();
     while (true) {
         game_button_actions_t board = poll_game_buttons();
-        pad_sample_t pad = gamepad_snapshot();
+        pad_sample_t pad = gamepad_frame_snapshot();
         if (board.pause || !pad.connected) {
             gb_port_set_keys(session, (gb_port_keys_t){0});
             if (audio_enabled && !gb_audio_stop()) {
-                gb_port_destroy(session); show_error("声音停止失败"); return;
+                destroy_game_session(session); show_error("声音停止失败"); return;
             }
             if (!pause_game(session, entry->sha256, pad.connected)) break;
             audio_enabled = s_sound_enabled && s_volume > 0;
+            ESP_LOGI(TAG, "resume audio: enabled=%u sound=%u volume=%u", (unsigned)audio_enabled,
+                     (unsigned)s_sound_enabled, (unsigned)s_volume);
             if (audio_enabled && !gb_audio_start(s_volume)) {
-                gb_port_destroy(session); show_error("声音启动失败"); return;
+                destroy_game_session(session); show_error("声音启动失败"); return;
             }
             if (!prepare_game_screen()) {
                 if (audio_enabled) gb_audio_stop();
-                gb_port_destroy(session); show_error("屏幕传输失败"); return;
+                destroy_game_session(session); show_error("屏幕传输失败"); return;
             }
             next = esp_timer_get_time();
             last_report = next;
@@ -539,12 +552,12 @@ static void run_game(size_t index) {
             previous_keys = 0;
             audio_epoch = next;
             audio_blocks = 0;
+            gb_frame_pacing_init(&pacing);
+            displayed_at_report = gb_display_completed();
+            gamepad_set_gameplay(true);
             continue;
         }
-        // Require release before forwarding the launch press or held animation input.
-        if (!pad.any_button && !pad.right && !pad.left && !pad.up && !pad.down &&
-            !pad.a && !pad.b && !pad.view && !pad.menu) launch_input_released = true;
-        gb_keys_t keys = launch_input_released ? gb_input_map(pad) : (gb_keys_t){0};
+        gb_keys_t keys = gb_input_map(pad);
         keys.start |= board.start;
         keys.select |= board.select;
         gb_port_set_keys(session, port_keys(keys));
@@ -555,11 +568,16 @@ static void run_game(size_t index) {
         if (key_bits != previous_keys) report_key_changes++;
         if (__builtin_popcount((unsigned)key_bits) >= 2) report_multi_keys++;
         previous_keys = key_bits;
-        bool draw = gb_frame_pacing_draw(&pacing);
+        bool display_idle = false;
+        if (gb_display_idle(&display_idle) != ESP_OK) {
+            if (audio_enabled) gb_audio_stop();
+            destroy_game_session(session); show_error("屏幕传输失败"); return;
+        }
+        bool draw = display_idle && gb_frame_pacing_draw(&pacing);
         int64_t frame_started = esp_timer_get_time();
         if (!gb_port_step_frame(session, draw)) {
             if (audio_enabled) gb_audio_stop();
-            gb_port_destroy(session); show_error("游戏读取失败"); return;
+            destroy_game_session(session); show_error("游戏读取失败"); return;
         }
         int64_t core_done = esp_timer_get_time();
         report_core_us += (uint64_t)(core_done - frame_started);
@@ -573,7 +591,7 @@ static void run_game(size_t index) {
                 size_t produced = gb_port_audio_frame(session, samples, GB_AUDIO_SAMPLES);
                 if (produced != GB_AUDIO_SAMPLES || !gb_audio_healthy()) {
                     gb_audio_stop();
-                    gb_port_destroy(session); show_error("声音输出失败"); return;
+                    destroy_game_session(session); show_error("声音输出失败"); return;
                 }
                 gb_audio_submit(samples, produced);
                 audio_blocks++;
@@ -592,17 +610,20 @@ static void run_game(size_t index) {
                                                             true, &queued);
             if (display_error != ESP_OK) {
                 if (audio_enabled) gb_audio_stop();
-                gb_port_destroy(session); show_error("屏幕传输失败"); return;
+                destroy_game_session(session); show_error("屏幕传输失败"); return;
             }
             if (!queued) dropped_frames++;
+            else gb_frame_pacing_mark_drawn(&pacing);
         }
         gb_frame_pacing_record(&pacing, (uint32_t)(esp_timer_get_time() - frame_started));
         frames++;
         report_frames++;
         int64_t now = esp_timer_get_time();
         if (now - last_report >= 10000000LL) {
-            ESP_LOGI(TAG, "emu_fps=%.1f draw_every=%u core_us=%lu draw_us=%lu skip_us=%lu audio_us=%lu key_changes=%lu multi_frames=%lu display_drops=%lu audio_drops=%lu audio_waits=%lu max_audio_wait_us=%lu free_heap=%lu min_heap=%lu largest_block=%lu idle_yields=%lu",
+            uint32_t displayed = gb_display_completed();
+            ESP_LOGI(TAG, "emu_fps=%.1f display_fps=%.1f draw_every=%u core_us=%lu draw_us=%lu skip_us=%lu audio_us=%lu key_changes=%lu multi_frames=%lu display_drops=%lu audio_drops=%lu audio_waits=%lu max_audio_wait_us=%lu free_heap=%lu min_heap=%lu largest_block=%lu idle_yields=%lu audio_on=%u audio_samples=%lu",
                      (double)report_frames * 1000000.0 / (double)(now - last_report),
+                     (double)(uint32_t)(displayed - displayed_at_report) * 1000000.0 / (double)(now - last_report),
                      (unsigned)pacing.draw_interval,
                      (unsigned long)(report_core_us / report_frames),
                      (unsigned long)(report_draw_us / (report_draw_frames ? report_draw_frames : 1)),
@@ -617,8 +638,11 @@ static void run_game(size_t index) {
                      (unsigned long)esp_get_free_heap_size(),
                      (unsigned long)esp_get_minimum_free_heap_size(),
                      (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
-                     (unsigned long)report_idle_yields);
+                     (unsigned long)report_idle_yields,
+                     (unsigned)audio_enabled,
+                     (unsigned long)gb_audio_output_samples());
             last_report = now;
+            displayed_at_report = displayed;
             report_frames = 0;
             dropped_frames = 0;
             report_core_us = report_audio_us = 0;
@@ -634,11 +658,11 @@ static void run_game(size_t index) {
                 if (!pause_game(session, entry->sha256, true)) break;
                 audio_enabled = s_sound_enabled && s_volume > 0;
                 if (audio_enabled && !gb_audio_start(s_volume)) {
-                    gb_port_destroy(session); show_error("声音启动失败"); return;
+                    destroy_game_session(session); show_error("声音启动失败"); return;
                 }
                 if (!prepare_game_screen()) {
                     if (audio_enabled) gb_audio_stop();
-                    gb_port_destroy(session); show_error("屏幕传输失败"); return;
+                    destroy_game_session(session); show_error("屏幕传输失败"); return;
                 }
                 next = esp_timer_get_time();
                 audio_epoch = next;
@@ -650,6 +674,7 @@ static void run_game(size_t index) {
                 report_draw_us = report_skip_us = 0;
                 report_draw_frames = report_skip_frames = 0;
                 report_key_changes = report_multi_keys = 0;
+                gamepad_set_gameplay(true);
             }
             last_save = esp_timer_get_time();
         }
@@ -676,7 +701,7 @@ static void run_game(size_t index) {
         }
     }
     if (audio_enabled && !gb_audio_stop()) ESP_LOGE(TAG, "audio stop failed");
-    gb_port_destroy(session);
+    destroy_game_session(session);
 }
 
 static void menu_loop(void) {

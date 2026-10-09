@@ -13,6 +13,7 @@
 #include "ui_font.h"
 #include <ctype.h>
 #include <string.h>
+#include <stdatomic.h>
 
 #define STRIP_ROWS 20
 static uint16_t *s_strip;
@@ -26,6 +27,7 @@ static SemaphoreHandle_t s_frame_free;
 static TaskHandle_t s_frame_task;
 static bool s_queued_enlarged;
 static esp_err_t s_frame_error = ESP_OK;
+static atomic_uint s_completed;
 
 static esp_err_t wait_frame_idle(void) {
     if (!s_frame_task) return ESP_OK;
@@ -40,6 +42,7 @@ static void frame_task(void *arg) {
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         esp_err_t e = gb_display_frame(s_queued_frame, s_queued_enlarged);
+        if (e == ESP_OK) atomic_fetch_add(&s_completed, 1);
         if (e != ESP_OK) s_frame_error = e;
         xSemaphoreGive(s_frame_free);
     }
@@ -179,6 +182,17 @@ esp_err_t gb_display_frame(const uint8_t *frame, bool enlarged) {
     return ESP_OK;
 }
 
+esp_err_t gb_display_idle(bool *idle) {
+    if (!s_ready || !s_frame_task || !idle) return ESP_ERR_INVALID_STATE;
+    *idle = xSemaphoreTake(s_frame_free, 0) == pdTRUE;
+    if (!*idle) return ESP_OK;
+    esp_err_t e = s_frame_error;
+    xSemaphoreGive(s_frame_free);
+    return e;
+}
+
+uint32_t gb_display_completed(void) { return atomic_load(&s_completed); }
+
 esp_err_t gb_display_color_frame(const uint8_t *indices,
                                  const uint8_t *bg_palette, const uint8_t *obj_palette) {
     if (!s_ready || !indices || !bg_palette || !obj_palette) return ESP_ERR_INVALID_ARG;
@@ -212,6 +226,7 @@ esp_err_t gb_display_color_frame(const uint8_t *indices,
         esp_err_t e = send_strip(0, 52 + row, 240, rows);
         if (e != ESP_OK) return e;
     }
+    atomic_fetch_add(&s_completed, 1);
     return ESP_OK;
 }
 

@@ -2,23 +2,29 @@
 
 # FoloToy AI Passport Game Boy 模拟器
 
+版本 **1.7**（2026-10-10）已仅应用升级到 COM14，用户确认画面流畅度大幅改善、声音恢复且更流畅。CPU 解释器及读取短路径移入指令 RAM，保留 1.5 输入修复与 1.6 绘制改进。 [Performance](docs/development/gameboy-performance.zh_CN.md).
+
+游戏每模拟帧消费一个变化状态，菜单读取实时状态。缓存最多 16 条，积压超过 100 ms 或容量时丢弃并记录警告；暂停、退出或断连清空，进入／恢复游戏等待全部松键。密集输入可能延后几个模拟帧，严重卡顿仍可能丢失短按；100 ms 是事件年龄限制，不是端到端延迟保证。
+
 设备开机直接进入主菜单。每次启动游戏，在 ROM／存档检查通过后、游戏运行前，复现初代单色 Game Boy 的标志下落和两段提示音；暂停后继续游戏不会重播。提示音遵循已保存的音量和静音设置。这是绘制的复现动画，不执行 Nintendo 启动 ROM；不保证 LCD 色彩和扬声器音色完全一致。动画顺序参考：[Pan Docs](https://github.com/gbdev/pandocs/blob/master/src/Power_Up_Sequence.md)。
 
 游戏中长按机身 OK，选择“息屏”并确认：暂停模拟、关闭 LCD/背光与音频输出，保留内存进度。重新按任一机身功能键或手柄上报的按键唤醒，松开后恢复游戏，不将唤醒按键传入游戏。手柄已断开时停留在暂停页等待重连。这是息屏待机，不是深度睡眠；硬件关机键仍控制电源，不能代替软件息屏。
 
-此检出目录将 SUMI Game Boy 核心移植到 AI Passport（ESP32-C3、8 MB Flash、无 PSRAM、ST7789P3 240×320 屏幕）。Bluepad32 和 BTstack 接收 Xbox 1914 和标准低功耗蓝牙键盘输入；键盘实机兼容性尚未验证。应用现有中文位图菜单、Wi-Fi 游戏管理，以及向 ES8311 扬声器输出的四声道 Game Boy APU。用户确认《宝可梦蓝》画面、按键和普通存档恢复，白屏修复后的《数码暴龙》《彩虹战士》正常游玩，以及《星之卡比》明显更流畅。复杂场景仍可能低于原机速度，音乐节奏也可能变化。仓库不附带商业 ROM。
+此检出目录将 SUMI Game Boy 核心移植到 AI Passport（ESP32-C3、8 MB Flash、无 PSRAM、ST7789P3 240×320 屏幕）。Bluepad32 和 BTstack 接收 Xbox 1914 和标准低功耗蓝牙键盘输入；用户此前反馈迈从 G87 V2 实体键盘正常，但未记录测试固件版本，1.5 回归仍待进行。应用现有中文位图菜单、Wi-Fi 游戏管理，以及向 ES8311 扬声器输出的四声道 Game Boy APU。用户确认《宝可梦蓝》画面、按键和普通存档恢复，白屏修复后的《数码暴龙》《彩虹战士》正常游玩，以及《星之卡比》明显更流畅。复杂场景仍可能低于原机速度，音乐节奏也可能变化。仓库不附带商业 ROM。
 
 设备的主页、配对、游戏列表、游戏管理、设置、暂停和错误页面使用统一的初代 GB 四阶灰绿色 LCD 风格。单色游戏像素也使用相同的四阶绿色，包括浅绿色背景；彩色游戏保留自身调色板。右上角保留电量，底部保留按键提示。游戏管理网页也使用相同配色和像素边框。
 
 8 MB 分区为：NVS `0x9000`（24 KiB）、PHY `0xf000`（4 KiB）、游戏应用 `0x10000`（3 MiB）、ROM `0x310000`（4 MiB）、SPIFFS 存档 `0x710000`（960 KiB）。没有官方固件、OTA 或恢复分区。安装此分区表会替换旧布局。初始化存档镜像只可在首次安装时写入；再次写入会清除已有存档。[8 MiB 清洁版镜像与安装说明](docs/development/release/gameboy-firmware.zh_CN.md)用于空白设备首次安装；其中没有游戏、存档、设置或手柄密钥，不能用来更新已配置的设备。
 
-可选的[首次安装预装镜像](docs/development/release/gameboy-firmware.zh_CN.md#可选预装游戏)可加入本地 ROM。它们与上传游戏共用可写目录，可在“游戏管理”改名／删除，删除后重启不恢复，空间可用于新上传游戏。本地 1.4 预装版包含用户提供的汉化《口袋妖怪红》和《超级马里奥大陆》；默认清洁版及 CI 镜像仍为空。重新安装完整镜像会覆盖已有游戏、存档、设置和绑定。
+当前经典选集预装 14 款，列表及筛选证据见[经典游戏包](docs/development/gameboy-classics-1.5.zh_CN.md)。它们与上传游戏共用可写目录，可以改名／删除，删除后重启不自动恢复。旧双游戏包保留，默认清洁版及 CI 镜像仍为空。重新安装完整镜像会覆盖游戏、存档、设置和绑定。
 
 游戏管理会拒绝旧列表发出的删除／改名请求，并刷新页面供用户核对后重试。目录写入结果无法确认时，会提示重启设备核对；在成功读取目录之前，阻止继续修改和启动游戏，保留现有存档。
 
 ## 构建和准备镜像
 
-当前本地固件包为 `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`（8 MiB），同目录提供 `.bin.sha256` 校验文件，包含已修复的 1.4 应用及两款预装游戏。本次变化和待完成实测见[双语更新日志](docs/CHANGELOG.zh_CN.md)及[验证记录](docs/development/gameboy-validation.zh_CN.md)。生成固件和 ROM 不进入 Git。
+当前完整包为 `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`（8 MiB），附校验值与游戏清单。14 款游戏分区与 1.5 完全一致；仅应用升级包为 `FoloToy-GameBoy-1.7-app.bin`，兼容当前 GameBoy 分区时写入 `0x10000` 可保留数据。生成固件和 ROM 不进入 Git；状态见[验证记录](docs/development/gameboy-validation.zh_CN.md)。
+
+预装游戏由 2 款扩充至 14 款，完整名单及本次输入／性能更新见[累计更新说明](docs/development/release/gameboy-firmware.zh_CN.md)。仅应用升级不会安装预装游戏。
 
 在 PowerShell 激活 ESP-IDF 5.5.3，执行 `idf.py --version` 和 `idf.py build`。输出为 `build/bootloader/bootloader.bin`、`build/partition_table/partition-table.bin`、`build/FoloToy-AI-Passport.bin` 和 `build/saves.bin`。`idf.py flash` 不会写入存档镜像。使用自己合法取得、兼容 DMG 的 `.gb` 文件：
 
@@ -35,9 +41,9 @@
 
 ## 操作和限制
 
-设置页底部信息栏显示固件版本，调整选项时也保留版本号。本次 BLE 发现修复将版本从 1.3 升为 **1.4**。版本唯一来源是根目录 `CMakeLists.txt` 中的 `PROJECT_VER`，界面读取已编译固件的应用描述信息，与启动日志保持一致。本次编号不等于发布 Release，也不代表手柄／键盘已完成实机验收。
+设置页底部显示固件版本。当前性能修订从 1.5 升至 **1.7**，唯一版本来源仍为根目录 `CMakeLists.txt` 的 `PROJECT_VER`，界面读取已编译应用描述信息。编号不等于公开 Release，也不代表新版本已完成实机验收。
 
-具体型号及传输协议限制见[反馈手柄协议表](docs/development/gameboy-sources.zh_CN.md#反馈手柄的协议)。四款反馈手柄均未使用 1.4 实测；猎户座二代青春版的不同版本采用的蓝牙协议并不相同。
+具体型号及传输协议限制见[反馈手柄协议表](docs/development/gameboy-sources.zh_CN.md#反馈手柄的协议)。四款反馈手柄均未使用 1.5 实测；猎户座二代青春版的不同版本采用的蓝牙协议并不相同。
 
 ### 蓝牙键盘
 

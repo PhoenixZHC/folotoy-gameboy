@@ -2,6 +2,78 @@
 
 # Game Boy Port Validation
 
+## 1.7 source archival and GitHub synchronization (2026-10-10)
+
+This change consolidates BLE/ordered-input fixes, core/rendering optimization, isolated automation and bilingual documentation. The local preinstalled selection expands from two games to fourteen; GitHub excludes ROMs, generated firmware, saves and device logs. Production source was matched against the archive already covered by build, host, simulator and COM14 checks. This documentation-only follow-up does not rebuild or flash. Statements such as "uncommitted" below describe historical delivery points; Git records identify the current source and synchronization state.
+
+## 1.7 device retest and delivery (2026-10-10)
+
+With explicit approval, only COM14 address 0x10000 was updated to 1.7. Write/hash, partition compatibility, version and 35-second startup checks passed; game, save, settings and pairing partitions were not written. A 240-second observation captured 12 windows across Kirby and Gradius: emulation 59.6–59.8 fps, display 14.9–29.8 fps, audio enabled and output samples increasing, with no reported crashes, audio/display drops or input backlog discards. The user confirmed substantially improved smoothness and smoother audible sound. This accepts the observed experience, not every game/controller or a constant display frame rate.
+
+Build: PASS, ESP-IDF 5.5.3, production GB_SIM_TEST=OFF; application 2,520,064 / 3,145,728 bytes. Full 8 MiB image and independent verification pass; fourteen-game ROM partition is byte-identical to 1.5.
+
+Host tests: PASS, 28 groups/0 failures; six unchanged supplementary checks reuse previous valid results. Fourteen ROMs, 3,600 frames each, three baseline/candidate pairs agree on cumulative video, PCM, CPU and full RAM state hashes.
+
+Simulator: Kirby and Gradius each pass 6 groups/0 failures over 1,800 frames, with screenshots visually confirmed in gameplay and final PCM peaks 26,740 and 18,620. The isolated entry excludes BLE and real hardware performance.
+
+Device tests: write/startup PASS; the user confirms improved motion and sound in this retest. Unverified: full playthroughs, all-controller compatibility, strictly matched-scene FPS benchmarks, long-duration memory stability and instrumented audio underrun measurement.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| 1.7 full (8,388,608 bytes) | `cbed22871af0ed78fc354ecb94e2b13b91c29c0af789739cde5fd7ad7906dae8` |
+| 1.7 app | `3664ad60e865e51372dc856aca97a01d6795963a796b718cf4f010aa77a9bf2a` |
+| ELF | `3f62a2b4a4e6a5b5457288cf2e39e269ae9276879f4df37bcdcca16139e76763` |
+
+`build/host-regression-bt783ls5/results.json`, `build/perf-all14-compact.json`, `build/sim-1.7-kirby-final`, `build/sim-1.7-gradius-final`, `build/release-1.7/com14-summary.json`, `build/release-1.7/com14-play-summary.json`.
+
+## 1.6 performance and simulator regression (2026-10-09)
+
+Production app: `build/release-1.6/FoloToy-AI-Passport.bin`; fourteen-game full image: `artifacts/releases/FoloToy-GameBoy-1.6-14games-full.bin`. The version comes only from `PROJECT_VER=1.6`. FC was not modified.
+
+- Build: PASS, ESP-IDF 5.5.3; application 2,539,840 / 3,145,728 bytes, production `GB_SIM_TEST=OFF`. Full 8 MiB packaging and independent verification pass; ROM partition matches 1.5. Esptool confirms 1.6 and valid checksum/hash.
+- Host tests: PASS, 28 focused groups/0 failures; the expanded RAM boundary group was rerun successfully. Fourteen ROMs, 3,600 frames each, three paired runs agree on framebuffer/PCM/CPU and full RAM state hashes. The unchanged four supplementary C and two Python groups reuse earlier valid results, for 34 groups total.
+- Simulator: PASS, baseline and candidate each pass 6 groups over 1,800 Kirby frames. Virtual work time 20,212,883 → 16,291,785 microseconds (19.4% less); final screen pixel hash and output sample counts agree. See [performance](gameboy-performance.md) for limits, failed development attempts and reproduction.
+- Device tests: 1.6 was flashed and booted, but the user reported no noticeable improvement and no sound; performance acceptance failed. See 1.7 above. The preceding 1.5 image was authorized and flashed on COM14, with fourteen-entry directory/startup checks passing; the user subsequently reported poor smoothness during the documented 240-second observation. Simulator success is not recorded as physical acceptance.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| 1.6 fourteen-game full image (8,388,608 bytes) | `48d30d9a4a9f097bf1b1d66e10dcfbdea06b63f9c438f60a83b30c2320b3748c` |
+| 1.6 application/application-only image | `8f2cdc3491d71bc8fa2df92c096056f17644b7d3e87abab2fc2ccc781c2fb677` |
+| Matching ELF | `3ab370a6f6aa1c395b6a9d8d199aaa9cf56823fd9b20888937072efee3754949` |
+
+Evidence: `build/release-1.6-build.log`, `build/release-1.6-image-info.log`, `build/release-1.6/package-verify.log`, `build/host-regression-3pk1j7iu/results.json`, `build/perf-all14-final.json`, `build/sim-candidate-final/results.json`. Installing the full image at `0x0` replaces user data; compatible routine updates write only the app at `0x10000`. No commit, push or public release. Sections below describe historical delivery points, not the latest installed state.
+
+## Version 1.5: ordered input and complete package (2026-10-09)
+
+The user confirmed FC controller testing and authorized the corresponding Game Boy fix. The port preserves FC's complete-state queue (16 states / 100 ms), independent releases and lifecycle clearing, alongside the preceding BLE/display fixes. The version source is now `PROJECT_VER=1.5`; FC was read but not modified. Game Boy device acceptance remains separate.
+
+- Build: PASS, ESP-IDF 5.5.3, fresh defaults-based configuration in `build/release-1.5`. Application size 2,521,776 / 3,145,728 bytes. Merge/layout, clean and preloaded 8 MiB packaging, and separate `--verify` runs passed. Esptool identifies version 1.5 with valid checksum/hash. Logs: `build/release-1.5-build.log`, `build/release-1.5-merge.log`, `build/release-1.5-image-info.log`.
+- Host tests: PASS, 34 groups / zero failures: 28 focused groups in `build/host-regression-o9jcth31/results.json`, four supplemental C checks and two supplemental Python groups. The new buffer group covers five scenarios. Compiling that test with `INPUT_LEGACY_SNAPSHOT` reproduces lost short taps while holding a direction (expected assertion failure); the production buffer passes. Evidence: `build/release-1.5-input-legacy.log`. Windows ran the gate's checks natively, not the Bash wrapper.
+- Device tests: NOT RUN for Game Boy 1.5. Unverified: direction plus repeated A/B, independent releases, stick recentering, menu/pause/wake/reconnection, exact controller compatibility and actual display/audio performance. FC feedback and older Game Boy results do not validate this binary. No flashing, commit, push, tag or public Release was performed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `artifacts/releases/FoloToy-GameBoy-1.5-full.bin` (8,388,608 bytes) | `f8e5f27c8a368e2e3fa3a60218674925f3c2f2b12e38a2d68dffc13e7859892e` |
+| `artifacts/releases/FoloToy-GameBoy-1.5-clean.bin` (8,388,608 bytes) | `24b97c9793850e51b87bec43ae78dfb89686188b0fc3103c1ca0027f600040aa` |
+| `build/release-1.5/FoloToy-AI-Passport.bin` | `1df9a9002f7ee1255e0bc7589d21db05a0ce71d3c753df9bea9ac09e7f89282d` |
+| `build/release-1.5/FoloToy-AI-Passport.elf` | `9445b6bb2116743a91600f75210ee2ca88c72c74eaf69bef276953705d5cac05` |
+
+The full package keeps the same supplied Chinese Pokemon Red and Super Mario Land. Both full images have checksum sidecars and overwrite all Flash data when written at `0x0`; app-only compatible updates use `0x10000`. Old packages remain intact. The content-addressed debug bundle is `artifacts/releases/debug/f8e5f27c8a368e2e3fa3a60218674925f3c2f2b12e38a2d68dffc13e7859892e/manifest.json`: 14 copied firmware/configuration/test files were independently rehashed. Generated files and ROMs stay outside Git.
+
+Final repository checks passed for 1,084 text files; actionlint 1.7.12 and `git diff --check` passed. The actual Obsidian Game Boy entry/status, shared BLE topic and delivery record were updated and read back. Source changes remain uncommitted.
+
+## Standard BLE input and display scheduling (2026-10-09, historical 1.4 build)
+
+Only Game Boy was modified; FC was read as a reference. [Implementation and FC handoff](ble-input-fc-handoff.md) lists mappings, limits, source changes, tests and physical acceptance. Version remains 1.4; no historical preloaded package was overwritten, and no firmware was flashed or published.
+
+- Build: PASS, ESP-IDF 5.5.3, isolated defaults-based configuration in `build/ble-input-20261009`. Application size 2,520,336 bytes; merged-image/layout checks and the 8 MiB clean packager passed. Clean image: `build/ble-input-20261009/GameBoy-clean.bin`, SHA-256 `64590e6d6fa6e51b5b142e1f95e38391672364ec0621bb0c9dc85ce15734e0c3`. App-only installation uses `0x10000` only on a compatible existing Game Boy layout; the clean image at `0x0` overwrites games, saves, settings and bonds. Build/merge logs: `build/ble-input-20261009-build-final.log`, `build/ble-input-20261009-merge.log`.
+- Host tests: 33 groups passed, zero failures: 27 focused groups in `build/host-regression-p88nmfnm/results.json`, four supplemental C checks and two supplemental Python groups (`test_deep_sleep_contract.py`, `test_check_repo.py`). Repository checks passed for 1,083 text files; actionlint 1.7.12 and `git diff --check` passed. On Windows, the gate's host/static/build/package commands were executed natively instead of invoking the Bash entry point. The old parser failed the held-A/split-stick reproduction; the new parser passed. Radio/GATT effects are stubbed in recovery tests, while production handlers and descriptor parsing execute unchanged by the harness.
+- Device tests: NOT RUN. Unverified: physical 8/12-button, Android, Xbox and keyboard regression; pairing, reconnection and wake; actual display/audio performance. `display_fps` measures completed display updates, including unchanged frames whose strips need no SPI transfer; it is not a count of distinct images or a performance guarantee.
+
+An initial sandboxed run could not launch the ESP-IDF compiler, and three packaging test groups could not write sandbox temporary files. Re-running with the required local execution access passed; no toolchain substitution or suppressed test failures were used. The revision does not claim to fix the older game-specific room freeze, reboot or music-tempo issues.
+
+Matching app SHA-256: `7f08b610a6974c576eb679ddfd8e230323354b7d78e5c2ea3c4ac8780b2ffa2d`; ELF file SHA-256: `b6190ed0bcf7af8d2a37b23655a16343a313f5aecfc345c49f5718b4810f65f2`. Both are retained in the same isolated build directory. These hashes identify local files, not the firmware currently installed on a board.
+
 ## Documentation and source handoff (2026-10-04)
 
 The English/Chinese overview, controls, acceptance, source/protocol notes, firmware guide and changelog are aligned to 1.4. The 1.4 changelog lists the four discovery fixes separately and does not repeat preinstalled games as a new feature. Pre-commit checks passed: 25 focused host groups in `build/host-regression-e9t62reh/results.json`, two supplemental Python groups, and four unchanged supplemental C results reused (31 total, zero failures). Repository and whitespace checks passed; unchanged workflow validation and the 1.4 build/image checks below are reused. The local 8 MiB package hash was checked again against its sidecar. Source handoff does not flash the device or publish a tag/Release; ROMs, generated firmware and device logs remain outside Git.

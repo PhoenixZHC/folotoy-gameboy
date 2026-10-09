@@ -144,6 +144,10 @@ bool uni_hid_parser_xboxone_does_name_match(struct uni_hid_device_s* d, const ch
     if (strncmp("Xbox Wireless Controller", name, 25) != 0)
         return false;
 
+    // BLE peers supply their own report map. Never replace it with a Classic
+    // Bluetooth compatibility descriptor just because the name matches.
+    if (d->conn.protocol == UNI_BT_CONN_PROTOCOL_BLE) return false;
+
     // Fake PID/VID
     uni_hid_device_set_vendor_id(d, XBOX_WIRELESS_VID);
     uni_hid_device_set_product_id(d, XBOX_WIRELESS_PID);

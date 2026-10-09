@@ -2,7 +2,31 @@
 
 # Game Boy baseline acceptance
 
-## Current 1.4 status (2026-10-04)
+## 1.7 device retest and delivery (2026-10-10)
+
+With explicit approval, only COM14 address 0x10000 was updated to 1.7. Write/hash, partition compatibility, version and 35-second startup checks passed; game, save, settings and pairing partitions were not written. A 240-second observation captured 12 windows across Kirby and Gradius: emulation 59.6–59.8 fps, display 14.9–29.8 fps, audio enabled and output samples increasing, with no reported crashes, audio/display drops or input backlog discards. The user confirmed substantially improved smoothness and smoother audible sound. This accepts the observed experience, not every game/controller or a constant display frame rate.
+
+Build: PASS, ESP-IDF 5.5.3, production GB_SIM_TEST=OFF; application 2,520,064 / 3,145,728 bytes. Full 8 MiB image and independent verification pass; fourteen-game ROM partition is byte-identical to 1.5.
+
+Host tests: PASS, 28 groups/0 failures; six unchanged supplementary checks reuse previous valid results. Fourteen ROMs, 3,600 frames each, three baseline/candidate pairs agree on cumulative video, PCM, CPU and full RAM state hashes.
+
+Simulator: Kirby and Gradius each pass 6 groups/0 failures over 1,800 frames, with screenshots visually confirmed in gameplay and final PCM peaks 26,740 and 18,620. The isolated entry excludes BLE and real hardware performance.
+
+Device tests: write/startup PASS; the user confirms improved motion and sound in this retest. Unverified: full playthroughs, all-controller compatibility, strictly matched-scene FPS benchmarks, long-duration memory stability and instrumented audio underrun measurement.
+
+[Performance](gameboy-performance.md).
+
+## 1.6 performance revision (2026-10-09)
+
+Production build/image checks, 28 focused host groups, fourteen-ROM differential checks and 6 PassportSim groups pass. The subsequent 1.6 hardware test did not meet user expectations; see the 1.7 retest above. Fixed-CPI simulation with wireless excluded does not establish hardware acceptance. See [performance evidence](gameboy-performance.md). “Current” in the 1.5 section below refers to that delivery date.
+
+## Version 1.5 input and display fixes (2026-10-09)
+
+The current application is `build/release-1.5/FoloToy-AI-Passport.bin`; the latest image is `artifacts/releases/FoloToy-GameBoy-1.5-14games-full.bin`. COM14 full-write verification, fourteen-entry directory readback and 35-second startup checks passed; per-game, multi-key and audio acceptance remain separate. See the [classic package](gameboy-classics-1.5.md) and [validation](gameboy-validation.md). Historical packages remain intact; FC was not modified.
+
+Device checks must include holding either direction while repeatedly tapping A/B, A+B with each release order, stick recentering while holding an action, and entry/pause/resume/screen-off/disconnection without leftover presses. Observe `input backlog discarded` and gameplay response together; bounded buffering can add frame latency. Check the same ROM/scene for display and audio performance. FC controller acceptance is reference evidence only, not Game Boy acceptance. The user's earlier G87 V2 keyboard feedback did not identify the firmware version or enumerate these cases.
+
+## Archived 1.4 status (2026-10-04)
 
 The current local application is `build/ble-discovery-fixes/FoloToy-AI-Passport.bin`; the complete package is `artifacts/releases/FoloToy-GameBoy-1.4-full.bin`. Version 1.4 adds four BLE discovery fixes: no Xbox-name requirement, Joystick admission, HID service UUID detection, and advertising/scan-response merging. It retains the 1.3 functionality and storage/display fixes. See the [controls](../../README.md#bluetooth-keyboards), [firmware guide](release/gameboy-firmware.md), [controller protocol evidence](gameboy-sources.md#reported-controller-protocols), and [build-specific validation](gameboy-validation.md).
 

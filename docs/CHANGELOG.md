@@ -10,6 +10,33 @@
 > with `CHANGELOG.zh_CN.md`. The entries currently under `Unreleased` are pending
 > review for the next release; they are not a finalized release history.
 
+## Game Boy 1.7 — 2026-10-10
+
+- Expanded the local preinstalled selection from two games to fourteen: Super Mario Land, Kirby, Pokemon Red, Contra, Castlevania, Ninja Gaiden, Battletoads, Dragon Ball Z, Gradius, Super Robot Wars, Doraemon Racing, Alien Battle, Battle City, and Hammerin' Harry. See the [classic selection](development/gameboy-classics-1.5.md) for exact ROM identities and hashes.
+- Added standard BLE HID parsing for common 8/12-button and Android layouts, preserved held inputs across report IDs, supported left-stick directions, retained real BLE descriptors, expanded advertisement recognition, and improved failed-connection and stale-bond recovery.
+- Improved ordered multi-button buffering to reduce missed short A/B presses while holding a direction. Pause, exit and disconnect clear queued inputs; game entry and resume require release.
+- Moved the compact CPU interpreter and common read path into instruction RAM, reduced redundant background/sprite and window-covered rendering work, and adjusted display updates according to workload.
+- Device testing confirmed substantially smoother motion and audio in Kirby and Gradius: 59.6–59.8 emulated fps and 14.9–29.8 display updates per second in this observation. Performance varies; constant full frame rate and complete game/controller compatibility are not guaranteed.
+
+Preinstalled games are included only in the local fourteen-game full image; application-only updates do not add games. Full installation at 0x0 replaces existing data; compatible application updates write only 0x10000. GitHub contains source, tests and documentation, not ROMs, preloaded firmware or device logs.
+
+Forced inlining in 1.6 grew the CPU interpreter to about 29 KiB. Its virtual work time improved by 19.4%, but hardware did not noticeably improve. In 1.7 the interpreter is about 9.2 KiB and, together with the 220-byte short read path, resides in instruction RAM. This avoids repeated Flash instruction fetches at a cost of about 9.6 KiB of internal RAM. Scanline palette reuse, window-background clipping and adaptive 2–4-frame drawing remain. Non-sensitive sound/volume/output-sample logs were added. Cache pressure is an explanation supported by code size and observed behavior, not an independently measured cache-hit rate.
+
+With explicit approval, only COM14 address 0x10000 was updated to 1.7. Write/hash, partition compatibility, version and 35-second startup checks passed; game, save, settings and pairing partitions were not written. A 240-second observation captured 12 windows across Kirby and Gradius: emulation 59.6–59.8 fps, display 14.9–29.8 fps, audio enabled and output samples increasing, with no reported crashes, audio/display drops or input backlog discards. The user confirmed substantially improved smoothness and smoother audible sound. This accepts the observed experience, not every game/controller or a constant display frame rate.
+
+## Game Boy 1.6 — 2026-10-09 (local performance package)
+
+Reduce common memory-read decoding; reuse scanline palettes and omit window-covered background; adjust drawing earlier against the frame budget. Add isolated PassportSim automation and local-ROM differential tooling. The fourteen-game ROM partition is unchanged. Host/simulator checks pass; physical performance is pending. See [performance](development/gameboy-performance.md). No tag or public release.
+
+## Game Boy 1.5 — 2026-10-09 (local firmware package)
+
+- Preserve short presses/releases between emulation frames using the FC ordered-state buffer; retain direction/action combinations and independent releases. Clear buffered input on pause, exit and disconnect, and wait for release on entry/resume.
+- Parse standard BLE 8/12-button and Android layouts across report IDs; use actual BLE descriptors even for Xbox-like names. Add left-stick directions with D-pad priority.
+- Extend HID advertisement recognition and recover failed connections or stale bonds with a bounded retry.
+- Schedule drawing from the last accepted display submission, skip rendering while the display is busy, and report completed display updates separately from emulation speed.
+
+The later local classic image expands to fourteen supplied games; see [selection and testing](development/gameboy-classics-1.5.md). Input buffering has 16-state/100-ms limits and may add frame latency. Game Boy 1.5 write/directory/startup checks passed; gameplay acceptance remains separate, and FC feedback does not validate this build. See [validation](development/gameboy-validation.md). No tag or public release was created.
+
 ## Game Boy 1.4 (release package prepared)
 
 - Removed the requirement for controller names to contain Xbox.

@@ -860,11 +860,25 @@ public:
         mappedRomBanks_[1] = romData_ + (romBank_ % romBankCount_) * ROM_BANK_SIZE;
     }
 
-    uint8_t readByte(uint16_t addr) {
+    // Share this short decoder instead of inlining it into every opcode.
+    // Forced inlining tripled cpu_step's code size on ESP32-C3. Keep the hot
+    // interpreter and this helper in instruction RAM to avoid ROM/code churn.
+    IRAM_ATTR __attribute__((noinline)) uint8_t readByte(uint16_t addr) {
         // Mapped Flash: resolve banking when the mapper changes, not on
         // every opcode/operand read. Streaming ROMs retain their cache path.
         if (addr < 0x8000 && mappedRomBanks_[addr >> 14])
             return cheatWrap(addr, mappedRomBanks_[addr >> 14][addr & 0x3fff]);
+        // HRAM holds common game polling flags and DMA routines. It has no
+        // I/O side effects; 0xffff must still read the interrupt-enable register.
+        if (addr >= 0xff80 && addr != 0xffff) return hram[addr - 0xff80];
+        if (addr >= 0xc000 && addr < 0xe000 &&
+            (addr < 0xd000 || !isCgb_ || wramBank_ < 2 || !wramExtra_))
+            return wram[addr - 0xc000];
+        return readByteSlow(addr);
+    }
+
+    // Keep the full mapper, RAM and I/O decoder outside the small hot helper.
+    __attribute__((noinline)) uint8_t readByteSlow(uint16_t addr) {
         // ROM Bank 0 (fixed) — final return wrapped in cheat lookup so
         // Game Genie codes for low-address ROM bytes apply transparently.
         if (addr < 0x4000) {
@@ -1390,7 +1404,7 @@ public:
         return (uint16_t)low | ((uint16_t)high << 8);
     }
 
-    int cpu_step(int idleBudget = 456) {
+    IRAM_ATTR __attribute__((noinline)) int cpu_step(int idleBudget = 456) {
         // EI delay semantics: the instruction immediately after EI must
         // execute BEFORE interrupts can fire. By checking interrupts first
         // using the PRE-EI ime_ state, and then promoting eiPending_ to
@@ -1696,11 +1710,21 @@ public:
         // Work in an unpacked 160-byte stack buffer so the per-pixel PPU
         // writes stay simple, then pack 2bpp into framebuf at the end.
         uint8_t row[GB_W];
-        memset(row, 0, GB_W);
         uint8_t colorRow[GB_W];
         if (isCgb_) memset(colorRow, 0, GB_W);
         uint8_t bgPriority[GB_W];
-        memset(bgPriority, 0, GB_W);
+        // Palette registers are constant throughout this scanline render.
+        // Decode each four-entry palette once instead of shifting per pixel.
+        uint8_t bgShades[4], objShades[2][4];
+        for (int color = 0; color < 4; color++) {
+            bgShades[color] = applyPalette(bgp_, color);
+            objShades[0][color] = applyPalette(obp0_, color);
+            objShades[1][color] = applyPalette(obp1_, color);
+        }
+        const bool window = windowVisible(line);
+        // The window replaces the background from WX-7 onwards. Do not draw
+        // background pixels that will immediately be overwritten.
+        const int bgEnd = window ? (wx_ < 7 ? 0 : wx_ - 7) : GB_W;
 
         // Background
         if ((lcdc_ & 0x01) || isCgb_) {
@@ -1709,7 +1733,7 @@ public:
             bool signedIdx = !(lcdc_ & 0x10);
             int y = (line + scy_) & 0xFF;
             int mapRow = mapBase + (y / 8) * 32;
-            for (int x = 0; x < GB_W;) {
+            for (int x = 0; x < bgEnd;) {
                 int sx = (x + scx_) & 0xFF;
                 int mapOffset = mapRow + sx / 8;
                 uint8_t tileIdx = vram[mapOffset];
@@ -1722,29 +1746,30 @@ public:
                 uint8_t lo = tileBank[tileAddr + tileRow];
                 uint8_t hi = tileBank[tileAddr + tileRow + 1];
                 int end = x + 8 - (sx & 7);
-                if (end > GB_W) end = GB_W;
+                if (end > bgEnd) end = bgEnd;
                 if (isCgb_) {
                     for (; x < end; x++) {
                         int bit = (attr & 0x20) ? ((x + scx_) & 7) : 7 - ((x + scx_) & 7);
                         uint8_t colorIdx = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
                         bgPriority[x] = colorIdx | (attr & 0x80 ? 4 : 0);
-                        row[x] = applyPalette(bgp_, colorIdx);
+                        row[x] = bgShades[colorIdx];
                         colorRow[x] = (attr & 7) * 4 + colorIdx;
                     }
                 } else {
                     for (int bit = 7 - (sx & 7); x < end; x++, bit--) {
                         uint8_t colorIdx = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
                         bgPriority[x] = colorIdx;
-                        row[x] = applyPalette(bgp_, colorIdx);
+                        row[x] = bgShades[colorIdx];
                     }
                 }
             }
         } else {
             memset(row, 0, GB_W);
+            memset(bgPriority, 0, GB_W);
         }
 
         // Window (uses internal line counter that only increments when window is drawn)
-        if (windowVisible(line)) {
+        if (window) {
             uint16_t winMap = (lcdc_ & 0x40) ? 0x1C00 : 0x1800;
             uint16_t dataBase = (lcdc_ & 0x10) ? 0x0000 : 0x0800;
             bool signedIdx = !(lcdc_ & 0x10);
@@ -1771,14 +1796,14 @@ public:
                                                      7 - ((x - winStartX) & 7);
                         uint8_t colorIdx = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
                         bgPriority[x] = colorIdx | (attr & 0x80 ? 4 : 0);
-                        row[x] = applyPalette(bgp_, colorIdx);
+                        row[x] = bgShades[colorIdx];
                         colorRow[x] = (attr & 7) * 4 + colorIdx;
                     }
                 } else {
                     for (int bit = 7 - (winX & 7); x < end; x++, bit--) {
                         uint8_t colorIdx = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
                         bgPriority[x] = colorIdx;
-                        row[x] = applyPalette(bgp_, colorIdx);
+                        row[x] = bgShades[colorIdx];
                     }
                 }
             }
@@ -1839,7 +1864,7 @@ public:
                 bool flipX = flags & 0x20;
                 bool flipY = flags & 0x40;
                 bool bgOver = flags & 0x80;
-                uint8_t pal = (flags & 0x10) ? obp1_ : obp0_;
+                const uint8_t *shades = objShades[(flags >> 4) & 1];
                 int tileY = line - sy;
                 if (flipY) tileY = spriteHeight - 1 - tileY;
                 uint8_t useTile = tile;
@@ -1858,7 +1883,7 @@ public:
                         if ((lcdc_ & 1) && (bgPriority[screenX] & 3) &&
                             (bgOver || (bgPriority[screenX] & 4))) continue;
                     } else if (bgOver && bgPriority[screenX] != 0) continue;
-                    row[screenX] = applyPalette(pal, colorIdx);
+                    row[screenX] = shades[colorIdx];
                     if (isCgb_) colorRow[screenX] = 32 + (flags & 7) * 4 + colorIdx;
                 }
             }

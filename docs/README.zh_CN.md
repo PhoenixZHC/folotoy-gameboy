@@ -5,9 +5,13 @@
 FoloToy AI Passport 是一个开放式可穿戴 AI 硬件，本仓库是这款 AI 硬件的开发基线。它不只展示"板子能运行什么"，还把开发应用所需的**硬件事实、稳定接口、资源边界、参考实现和验收方法**放在同一仓库中。
 
 当前检出目录包含 [Game Boy 固件移植](../README.zh_CN.md)。下方硬件资料描述上游 AI Passport 基线；本目录的演示应用和分区布局已由模拟器固件替换。
-当前本地固件为 **1.4**，新增四项 BLE 发现修复：取消 Xbox 名称限制、接纳 Joystick 类型、识别 HID 服务 UUID，以及合并广播／扫描响应字段。保留键盘操作、绿色单色画面、逐游戏启动动画和可选的可删除预装游戏。[更新日志](CHANGELOG.zh_CN.md)、[验收范围](development/gameboy-acceptance.zh_CN.md)、[验证状态](development/gameboy-validation.zh_CN.md)、[来源、许可证及手柄协议记录](development/gameboy-sources.zh_CN.md)和 [8 MiB 安装说明](development/release/gameboy-firmware.zh_CN.md)另行维护。实体键盘及反馈手柄兼容性尚未实测；不支持经典蓝牙。
+当前本地固件为 **1.7**。1.7 已按明确批准仅更新 COM14 的 0x10000，写入校验、分区匹配、版本及 35 秒启动检查通过；游戏、存档、设置和配对分区未写入。240 秒观察捕获 12 个窗口，覆盖卡比和宇宙巡航机：模拟 59.6–59.8 fps、显示 14.9–29.8 fps，声音开启且输出采样递增，未报告崩溃、音频／显示丢块或输入积压丢弃。用户明确反馈“流畅度大幅改善，声音流畅也改善了，可以听到了”。这确认本轮体验改善，不是全部游戏、全部手柄或恒定显示帧率的保证。 [Performance](development/gameboy-performance.zh_CN.md).
+
+预装游戏由 2 款扩充至 14 款，完整名单及本次输入／性能更新见[累计更新说明](development/release/gameboy-firmware.zh_CN.md)。仅应用升级不会安装预装游戏。
 
 这个仓库的组织方式是：
+
+[BLE 输入修复与跨项目交接](development/ble-input-fc-handoff.zh_CN.md)也记录后续从 FC 回移到 GameBoy 的输入缓存。历史真机结果不能代替本构建验收。
 
 - `main` 是最小但完整的可运行基线，也是当前硬件能力的可执行说明；
 - `components/bsp` 隔离板级差异，为应用提供稳定 API；
@@ -128,3 +132,7 @@ LICENSE                  仓库许可证
 GitHub 社区治理文档：[CONTRIBUTING.zh_CN.md](../.github/CONTRIBUTING.zh_CN.md)、[CODE_OF_CONDUCT.zh_CN.md](../.github/CODE_OF_CONDUCT.zh_CN.md)、[SECURITY.zh_CN.md](../.github/SECURITY.zh_CN.md)、[SUPPORT.zh_CN.md](../.github/SUPPORT.zh_CN.md)。
 
 > 注：本 README 只描述产品与仓库，不含给 AI 的执行说明；AI 开始开发前请先读根目录 `AGENTS.zh_CN.md`，再按任务路由读取相关文档。
+
+- [Game Boy 1.5 classics](development/gameboy-classics-1.5.zh_CN.md)：14 款游戏清单、分区容量和 COM14 实测记录。
+
+- [Game Boy 1.7](development/gameboy-performance.zh_CN.md): 性能优化与验证边界。

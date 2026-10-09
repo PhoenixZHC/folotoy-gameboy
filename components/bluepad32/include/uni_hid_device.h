@@ -58,6 +58,7 @@ struct uni_hid_device_s {
 
     // Channels
     uint16_t hids_cid;  // BLE only
+    bool ble_repair_attempted;
     bool ble_hid_service_filter;
     uint8_t ble_hid_service_index; // UINT8_MAX until a UUID-only candidate is classified.
 

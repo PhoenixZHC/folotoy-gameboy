@@ -51,6 +51,17 @@ static void test_keyboard(void) {
 
 int main(void) {
     test_keyboard();
+    pad_sample_t stick = {.connected = true};
+    gb_input_left_stick(&stick, 160, -160);
+    assert(!stick.any_button);
+    gb_input_left_stick(&stick, 511, -512);
+    assert(stick.right && stick.up && stick.any_button);
+    stick = (pad_sample_t){.connected = true, .left = true};
+    gb_input_left_stick(&stick, 511, 512);
+    assert(stick.left && !stick.right && stick.down);
+    stick = (pad_sample_t){0};
+    gb_input_left_stick(&stick, 511, 512);
+    assert(!stick.any_button);
     pad_sample_t p = {.connected = true, .right = true, .a = true};
     gb_keys_t k = gb_input_map(p);
     assert(k.right && k.a && !k.b && !k.left);

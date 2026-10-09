@@ -1,5 +1,74 @@
 #include "gb_input.h"
 
+static unsigned sample_bits(pad_sample_t p) {
+    return (p.right ? 1u : 0) | (p.left ? 2u : 0) |
+           (p.up ? 4u : 0) | (p.down ? 8u : 0) |
+           (p.a ? 16u : 0) | (p.b ? 32u : 0) |
+           (p.view ? 64u : 0) | (p.menu ? 128u : 0);
+}
+
+static bool released(pad_sample_t p) {
+    return p.connected && !p.any_button && sample_bits(p) == 0;
+}
+
+void gb_input_buffer_reset(gb_input_buffer_t *s, pad_sample_t p, bool enabled) {
+    s->latest = p;
+    s->head = s->count = 0;
+    s->enabled = enabled;
+    s->armed = enabled && released(p);
+}
+
+void gb_input_buffer_push(gb_input_buffer_t *s, pad_sample_t p, int64_t now_us) {
+    unsigned previous = sample_bits(s->latest);
+    s->latest = p;
+    if (!p.connected || !s->enabled) {
+        s->head = s->count = 0;
+        s->armed = false;
+        return;
+    }
+    if (!s->armed) {
+        s->armed = released(p);
+        return;
+    }
+    if (sample_bits(p) == previous) return;
+    if (s->count == GB_INPUT_BUFFER_CAPACITY) {
+        // Discard the whole backlog, including releases paired with old presses.
+        s->dropped += s->count;
+        s->head = s->count = 0;
+    }
+    size_t tail = (s->head + s->count) % GB_INPUT_BUFFER_CAPACITY;
+    s->events[tail] = (gb_input_event_t){.sample=p, .at_us=now_us};
+    s->count++;
+}
+
+pad_sample_t gb_input_buffer_take(gb_input_buffer_t *s, int64_t now_us) {
+    if (!s->enabled || !s->armed)
+        return (pad_sample_t){.connected=s->latest.connected};
+    if (s->count && now_us - s->events[s->head].at_us > GB_INPUT_BUFFER_MAX_AGE_US) {
+        // Do not replay stale attacks after a stall; the caller reports drops.
+        s->dropped += s->count;
+        s->head = s->count = 0;
+    }
+    if (!s->count) return s->latest;
+    pad_sample_t p = s->events[s->head].sample;
+    s->head = (s->head + 1) % GB_INPUT_BUFFER_CAPACITY;
+    s->count--;
+    return p;
+}
+
+void gb_input_left_stick(pad_sample_t *sample, int32_t x, int32_t y) {
+    if (!sample || !sample->connected) return;
+    if (!sample->left && !sample->right) {
+        sample->left = x < -160;
+        sample->right = x > 160;
+    }
+    if (!sample->up && !sample->down) {
+        sample->up = y < -160;
+        sample->down = y > 160;
+    }
+    sample->any_button |= sample->left || sample->right || sample->up || sample->down;
+}
+
 pad_sample_t gb_input_keyboard(const uint8_t *keys, size_t count, uint8_t modifiers) {
     pad_sample_t out = {.connected = true, .any_button = modifiers != 0};
     if (!keys) return out;

@@ -4,6 +4,16 @@
 
 This product uses the five partitions in the repository-root `partitions.csv`, not the three-partition upstream template. The clean release image is **8,388,608 bytes (8 MiB)**. It is assembled from the ESP32-C3 bootloader at `0x0`, partition table at `0x8000`, application at `0x10000`, and a reproducibly generated initial SPIFFS image at `0x710000`. Every other byte is `0xFF`. In particular, NVS (`0x9000`–`0xEFFF`), PHY (`0xF000`–`0xFFFF`) and the entire ROM region (`0x310000`–`0x70FFFF`) contain no settings, controller bonds or games. The initialized saves filesystem contains only the public `assets/initial_saves/README.txt`, no game progress.
 
+## 1.7 cumulative update notes (2026-10-10)
+
+- Expanded the local preinstalled selection from two games to fourteen: Super Mario Land, Kirby, Pokemon Red, Contra, Castlevania, Ninja Gaiden, Battletoads, Dragon Ball Z, Gradius, Super Robot Wars, Doraemon Racing, Alien Battle, Battle City, and Hammerin' Harry. See the [classic selection](../gameboy-classics-1.5.md) for exact ROM identities and hashes.
+- Added standard BLE HID parsing for common 8/12-button and Android layouts, preserved held inputs across report IDs, supported left-stick directions, retained real BLE descriptors, expanded advertisement recognition, and improved failed-connection and stale-bond recovery.
+- Improved ordered multi-button buffering to reduce missed short A/B presses while holding a direction. Pause, exit and disconnect clear queued inputs; game entry and resume require release.
+- Moved the compact CPU interpreter and common read path into instruction RAM, reduced redundant background/sprite and window-covered rendering work, and adjusted display updates according to workload.
+- Device testing confirmed substantially smoother motion and audio in Kirby and Gradius: 59.6–59.8 emulated fps and 14.9–29.8 display updates per second in this observation. Performance varies; constant full frame rate and complete game/controller compatibility are not guaranteed.
+
+Preinstalled games are included only in the local fourteen-game full image; application-only updates do not add games. Full installation at 0x0 replaces existing data; compatible application updates write only 0x10000. GitHub contains source, tests and documentation, not ROMs, preloaded firmware or device logs.
+
 ## Build and verify
 
 Activate ESP-IDF 5.5.3 and build for `esp32c3`. The upstream complete gate runs `./tools/validate.sh`; its firmware mode also produces `build/FoloToy-GameBoy-8MB-clean.bin` and a `.sha256` sidecar. On Windows, after `idf.py build`, generate the same image with:
@@ -18,14 +28,14 @@ The packaging tool checks the fixed partition layout, source images, a freshly r
 
 ## Optional preinstalled games
 
-The current local 1.4 package is `artifacts/releases/FoloToy-GameBoy-1.4-full.bin` with an adjacent `.bin.sha256` file. It contains the BLE discovery fixes rebuilt as version 1.4 in `build/ble-discovery-fixes`, plus the two supplied games. COM14 startup was checked using the preceding 1.3 clean build with the same BLE fixes; the 1.4 preloaded image has not been flashed or publicly released. See the [1.4 changelog](../../CHANGELOG.md) and [validation record](../gameboy-validation.md).
+The current classic image is `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`, using the production application in `build/release-1.7` (`GB_SIM_TEST=OFF`). The [1.5 selection and capacity](../gameboy-classics-1.5.md) remain applicable; the ROM partition is byte-identical. `FoloToy-GameBoy-1.7-app.bin` supports application-only updates at `0x10000` with the compatible layout. 1.7 application-only write/startup checks pass, and the user confirms substantially improved motion and sound. Old packages remain; commands below are a historical two-game example.
 
 Pass repeatable `--rom` arguments to include local games in the normal writable ROM partition. If a source filename is too long, give one `--rom-name` per ROM in the same order (at most 31 UTF-8 bytes each). Source files are read without renaming or modifying them. Without `--output`, this mode writes `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`; omitting `--rom` still produces the empty clean image used by CI.
 
 ```powershell
 $redRom = 'E:\ROMs\PokemonRed.gb'
 $marioRom = 'E:\ROMs\SuperMarioLand.gb'
-$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/ble-discovery-fixes', '--rom', $redRom, '--rom-name', 'Pokemon Red', '--rom', $marioRom, '--rom-name', 'Super Mario Land', '--output', 'artifacts/releases/FoloToy-GameBoy-1.4-full.bin')
+$packageArgs = @('tools/package_gameboy_release.py', '--build-dir', 'build/release-1.5', '--rom', $redRom, '--rom-name', 'Pokemon Red', '--rom', $marioRom, '--rom-name', 'Super Mario Land', '--output', 'artifacts/releases/FoloToy-GameBoy-1.5-full.bin')
 & python.exe @packageArgs
 & python.exe @packageArgs --verify
 ```

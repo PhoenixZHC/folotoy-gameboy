@@ -23,13 +23,35 @@ int main(void) {
     gb_frame_pacing_t pacing;
     gb_frame_pacing_init(&pacing);
     assert(gb_frame_pacing_draw(&pacing));
-    for (int i = 0; i < 120; i++) gb_frame_pacing_record(&pacing, 24000);
+    gb_frame_pacing_mark_drawn(&pacing);
+    gb_frame_pacing_record(&pacing, 0);
+    assert(!gb_frame_pacing_draw(&pacing));
+    gb_frame_pacing_record(&pacing, 0);
+    assert(gb_frame_pacing_draw(&pacing));
+    // A busy LCD misses the due frame; the next frame must still be due.
+    gb_frame_pacing_record(&pacing, 0);
+    assert(gb_frame_pacing_draw(&pacing));
+    gb_frame_pacing_mark_drawn(&pacing);
+    assert(!gb_frame_pacing_draw(&pacing));
+    pacing.frames = UINT32_MAX;
+    gb_frame_pacing_mark_drawn(&pacing);
+    gb_frame_pacing_record(&pacing, 0);
+    assert(!gb_frame_pacing_draw(&pacing));
+    gb_frame_pacing_record(&pacing, 0);
+    assert(gb_frame_pacing_draw(&pacing));
+    gb_frame_pacing_init(&pacing);
+    // A workload below the old 20 ms threshold still misses the GB deadline.
+    for (int i = 0; i < 60; i++) gb_frame_pacing_record(&pacing, 18000);
     assert(pacing.draw_interval == 3);
-    for (int i = 0; i < 120; i++) gb_frame_pacing_record(&pacing, 24000);
+    for (int i = 0; i < 60; i++) gb_frame_pacing_record(&pacing, 18000);
+    assert(pacing.draw_interval == 4);
+    for (int i = 0; i < 60; i++) gb_frame_pacing_record(&pacing, 24000);
+    assert(pacing.draw_interval == 4);
+    for (int i = 0; i < 60; i++) gb_frame_pacing_record(&pacing, 15000);
+    assert(pacing.draw_interval == 4);
+    for (int i = 0; i < 60; i++) gb_frame_pacing_record(&pacing, 13000);
     assert(pacing.draw_interval == 3);
-    for (int i = 0; i < 120; i++) gb_frame_pacing_record(&pacing, 16000);
-    assert(pacing.draw_interval == 3);
-    for (int i = 0; i < 120; i++) gb_frame_pacing_record(&pacing, 12000);
+    for (int i = 0; i < 60; i++) gb_frame_pacing_record(&pacing, 13000);
     assert(pacing.draw_interval == 2);
     return 0;
 }
