@@ -13,6 +13,7 @@
 #include "bt/uni_bt_bredr.h"
 #include "bt/uni_bt_defines.h"
 #include "bt/uni_bt_le.h"
+#include "bt/uni_bt_le_iine.h"
 #include "bt/uni_bt_service.h"
 #include "controller/uni_controller_type.h"
 #include "parser/uni_hid_parser_8bitdo.h"
@@ -504,6 +505,8 @@ void uni_hid_device_delete(uni_hid_device_t* d) {
         loge("uni_hid_device_delete: invalid hid device: NULL\n");
         return;
     }
+
+    uni_bt_le_iine_reset(d);
 
     // Delete child first
     if (d->child)

@@ -60,6 +60,7 @@ struct uni_hid_device_s {
     uint16_t hids_cid;  // BLE only
     bool ble_repair_attempted;
     bool ble_hid_service_filter;
+    bool ble_iine; // L1241 private GATT backend, independent of HIDS.
     uint8_t ble_hid_service_index; // UINT8_MAX until a UUID-only candidate is classified.
 
     // TODO: Create a union of gamepad/mouse/keyboard structs

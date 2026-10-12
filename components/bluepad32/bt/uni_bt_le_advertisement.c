@@ -4,8 +4,16 @@
 
 enum { AD_SHORT_NAME = 0x08, AD_COMPLETE_NAME = 0x09, AD_APPEARANCE = 0x19 };
 
+bool uni_bt_le_adv_is_iine(const uni_bt_le_adv_entry_t* entry) {
+    return entry && !entry->hid_service &&
+           (entry->appearance == 0 || entry->appearance == 0x03c0 ||
+            entry->appearance == 0x03c3 || entry->appearance == 0x03c4) &&
+           (entry->iine_service || (entry->complete_name && !strcmp(entry->name, "IINE GAMEPAD")));
+}
+
 uint16_t uni_bt_le_adv_cod(const uni_bt_le_adv_entry_t* entry) {
     if (!entry) return 0;
+    if (uni_bt_le_adv_is_iine(entry)) return 0x0508;
     switch (entry->appearance) {
         case 0x03c1: return 0x0540; // Keyboard.
         case 0x03c2: return 0x0580; // Mouse; the platform may reject it.
@@ -52,8 +60,13 @@ const uni_bt_le_adv_entry_t* uni_bt_le_adv_observe(uni_bt_le_adv_cache_t* cache,
                 0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80,
                 0x00, 0x10, 0x00, 0x00, 0x12, 0x18, 0x00, 0x00};
             if (value_length % 16) return NULL;
-            for (size_t i = 0; i < value_length; i += 16)
+            static const uint8_t iine_uuid[16] = {
+                0xb5, 0xda, 0x8b, 0x14, 0xc4, 0x19, 0xc3, 0x96,
+                0xe9, 0x46, 0x0d, 0x66, 0xe0, 0x10, 0xf0, 0xd7};
+            for (size_t i = 0; i < value_length; i += 16) {
                 if (memcmp(value + i, hid_uuid, sizeof(hid_uuid)) == 0) fields.hid_service = true;
+                if (memcmp(value + i, iine_uuid, sizeof(iine_uuid)) == 0) fields.iine_service = true;
+            }
         } else if (type == AD_APPEARANCE) {
             if (value_length != 2) return NULL;
             fields.appearance = (uint16_t)value[0] | ((uint16_t)value[1] << 8);
@@ -99,6 +112,7 @@ const uni_bt_le_adv_entry_t* uni_bt_le_adv_observe(uni_bt_le_adv_cache_t* cache,
     entry->last_seen_ms = now_ms;
     if (has_appearance) entry->appearance = fields.appearance;
     entry->hid_service |= fields.hid_service;
+    entry->iine_service |= fields.iine_service;
     // A later shortened name must not overwrite a complete scan-response name.
     if (fields.name[0] && (fields.complete_name || !entry->complete_name)) {
         memcpy(entry->name, fields.name, sizeof(entry->name));
