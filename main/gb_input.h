@@ -17,6 +17,15 @@ typedef struct {
 } gb_keys_t;
 
 gb_keys_t gb_input_map(pad_sample_t sample);
+// Select long press is a one-shot gesture; entry/resume requires release first.
+#define GB_SELECT_PAUSE_US 1000000LL
+typedef struct {
+    bool connected, armed, holding;
+    int64_t started_us;
+} gb_select_pause_t;
+void gb_select_pause_init(gb_select_pause_t *state, pad_sample_t sample);
+bool gb_select_pause_step(gb_select_pause_t *state, pad_sample_t sample, int64_t now_us);
+
 // Merge normalized left-stick directions, with a dead zone and D-pad priority.
 void gb_input_left_stick(pad_sample_t *sample, int32_t x, int32_t y);
 // HID Keyboard/Keypad usage IDs, independent of case and host input methods.

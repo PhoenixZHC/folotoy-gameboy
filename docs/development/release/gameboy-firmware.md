@@ -2,6 +2,21 @@
 
 # Game Boy firmware image and GitHub handoff
 
+## 1.8 fourteen-game full-image flash (2026-10-12)
+
+At the user's request, `artifacts/releases/FoloToy-GameBoy-1.8-14games-full.bin` was written to COM14 at `0x0`, replacing the previous FC games, saves, settings, and pairing data. The image is 8,388,608 bytes and includes the original fourteen GB games; all source ROM SHA-256 values match the 1.7 manifest. Full-image SHA-256: `b7aeab13ae5215b286d714c42a942b88ac3af01bacf45d13bc87165ef5b99b82`; application SHA-256: `cd567b0217eb9f01cdd7789b9c2283afe6cd6d3fe8bc0dccbcbc5d73ee79d519`. The adjacent manifest records application, ELF, and game identities.
+
+The ESP-IDF 5.5.3 incremental build, full-image generation and verification, and flash write hash check passed. A 30-second serial observation showed BLE discovery activity without panic/watchdog markers, but complete startup identity lines were not captured. The user subsequently reported no issues during testing; no per-game playthrough, controller firmware or endurance checklist was supplied, so acceptance is not expanded beyond that feedback. Pre-commit verification: 38 host groups passed, 0 failed (32 focused and 6 supplementary); actionlint passed. The unchanged ESP-IDF 5.5.3 application verified in this session was reused; the fourteen source ROMs, full image and component consistency were rechecked. The complete Bash gate is unavailable on this host; native checks are not reported as a successful run of that entry point. Statements below that 1.8 was not flashed describe the earlier state.
+
+## Global Select return (2026-10-12)
+
+Every existing long-OK back/exit action also accepts a one-second Select hold: Settings (finish editing first), Controller test, Game management, game/empty lists, and Pause (exit after a successful save). Pairing cancel/retry uses the same event, but board buttons remain necessary when no controller input is available before connection/confirmation. Entry and return from child pages require release before another hold, preventing cascading exits. In Controller test, a short Select press is displayed; a one-second hold returns. The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability.
+
+
+## 2026-10-12 controller update
+
+The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability.
+
 This product uses the five partitions in the repository-root `partitions.csv`, not the three-partition upstream template. The clean release image is **8,388,608 bytes (8 MiB)**. It is assembled from the ESP32-C3 bootloader at `0x0`, partition table at `0x8000`, application at `0x10000`, and a reproducibly generated initial SPIFFS image at `0x710000`. Every other byte is `0xFF`. In particular, NVS (`0x9000`–`0xEFFF`), PHY (`0xF000`–`0xFFFF`) and the entire ROM region (`0x310000`–`0x70FFFF`) contain no settings, controller bonds or games. The initialized saves filesystem contains only the public `assets/initial_saves/README.txt`, no game progress.
 
 ## 1.7 cumulative update notes (2026-10-10)

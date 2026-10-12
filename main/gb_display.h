@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include "esp_err.h"
 #include "gb_pixels.h"
+#include "gamepad_test.h"
 
 esp_err_t gb_display_init(void);
 esp_err_t gb_display_screen_on(bool on);
@@ -34,3 +35,4 @@ typedef struct {
 } gb_ui_model_t;
 
 esp_err_t gb_display_ui(const gb_ui_model_t *model);
+esp_err_t gb_display_gamepad_test(const gamepad_test_state_t *state, uint32_t now, int battery);

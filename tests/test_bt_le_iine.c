@@ -14,6 +14,13 @@ static uint8_t saved_wire[20];
 static uint16_t saved_length;
 static uni_hid_device_t peer;
 static uni_gamepad_t observed;
+static bool confirmation_pending;
+static uint16_t confirmation_firmware;
+static void confirmation(uni_hid_device_t* device, bool pending, uint16_t firmware) {
+    assert(device == &peer);
+    confirmation_pending = pending;
+    confirmation_firmware = firmware;
+}
 
 uint32_t btstack_run_loop_get_time_ms(void) { return clock_ms; }
 void btstack_run_loop_set_timer_context(btstack_timer_source_t* t, void* context) { t->context = context; }
@@ -187,6 +194,47 @@ int main(void) {
     assert(links[0].input.buttons == 1); // Changes between mode/test writes are retained.
     elapsed(500); complete(0); reject_ready = true; before = reports; elapsed(50);
     assert(!links[0].device && !listeners && reports == before);
-    puts("IINE BTstack: discovery, identity, retries, keepalive, delta mapping and reconnect passed");
+    reject_ready = false;
+    uni_bt_le_iine_set_confirmation_callback(confirmation);
+    discover(); identify(true); enter_test();
+    assert(!confirmation_pending); // Verified firmware still connects without a prompt.
+    uni_bt_le_iine_reset(&peer);
+    discover(); identify(false);
+    assert(confirmation_pending && confirmation_firmware == 0x2802 && links[0].step == CONFIRM);
+    unsigned pending_writes = writes, pending_reports = reports, pending_ready = ready;
+    notify(0x1f, 0, a, sizeof(a));
+    elapsed(5000);
+    assert(writes == pending_writes && reports == pending_reports && ready == pending_ready);
+    assert(!links[0].input.buttons); // Never accept input before consent.
+    uni_bt_le_iine_confirm(&peer);
+    assert(!confirmation_pending && links[0].step == CAPS);
+    uni_bt_le_iine_confirm(&peer); // Duplicate OK cannot restart the handshake.
+    enter_test();
+    notify(0x1f, 0, a, sizeof(a)); assert(observed.buttons == BUTTON_A);
+    uni_bt_le_iine_reset(&peer);
+    discover(); identify(false); assert(confirmation_pending); // Consent is not persisted.
+    uni_bt_le_iine_reset(&peer); assert(!confirmation_pending);
+    before = writes;
+    uni_bt_le_iine_confirm(&peer); elapsed(50);
+    assert(!links[0].device && writes == before); // Late confirmation after cancellation.
+    discover(); identify(false);
+    unsigned failures = disconnected;
+    elapsed(60000);
+    assert(disconnected == failures + 1 && !confirmation_pending && !listeners);
+    discover(); identify(false);
+    clock_ms += 60000; // Approval at/after expiry must also fail without waiting for tick.
+    uni_bt_le_iine_confirm(&peer);
+    assert(disconnected == failures + 2 && !confirmation_pending);
+    discover();
+    const uint8_t wrong_model[] = {7,0x10,3,0x20,0x28,2,9,0x51};
+    notify(0x19, sent.serial, wrong_model, sizeof(wrong_model));
+    complete(0); elapsed(50);
+    assert(disconnected == failures + 3 && !confirmation_pending); // No model wildcard.
+    discover();
+    const uint8_t short_identity[] = {7,0x10,2,0x20,0x28,2};
+    notify(0x19, sent.serial, short_identity, sizeof(short_identity));
+    complete(0); elapsed(50);
+    assert(disconnected == failures + 4 && !confirmation_pending);
+    puts("IINE BTstack: verified firmware, explicit opt-in, timeout, cancellation, identity and reconnect passed");
     return 0;
 }

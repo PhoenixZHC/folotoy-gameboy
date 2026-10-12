@@ -2,6 +2,10 @@ English | [简体中文](ble-input-fc-handoff.zh_CN.md)
 
 # Game Boy BLE fixes and FC handoff (2026-10-09)
 
+## 2026-10-12 controller update
+
+The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability. See [controller support](controller-test.md) for L1241, home navigation, input testing and Select holds. Historical FC results do not establish GameBoy acceptance.
+
 ## Scope and status
 
 Only `E:/code/folotoy-gameboy` is modified here; `E:/code/folotoy-fc` is a read-only reference. The first handoff covered local fixes after 1.4. FC subsequently integrated those BLE fixes; the user confirmed FC controller testing and wrap-up in this conversation. Game Boy now ports FC's ordered input buffer and packages these cumulative changes as **1.5**. Historical packages remain unchanged. The later [fourteen-game image](gameboy-classics-1.5.md) passed authorized COM14 flashing and startup checks; gameplay acceptance is separate. The initial handoff was uncommitted; its cumulative source is now included in the 1.7 archival change. Git records identify the current synchronization state.

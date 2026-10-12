@@ -50,6 +50,26 @@ static void test_keyboard(void) {
 }
 
 int main(void) {
+    gb_select_pause_t hold;
+    pad_sample_t released = {.connected=true}, pressed = {.connected=true,.view=true};
+    gb_select_pause_init(&hold, released);
+    assert(!gb_select_pause_step(&hold, pressed, 0));
+    assert(!gb_select_pause_step(&hold, pressed, 999999));
+    assert(gb_input_map(pressed).select); // Short presses still reach the game.
+    assert(gb_select_pause_step(&hold, pressed, 1000000));
+    assert(!gb_select_pause_step(&hold, pressed, 3000000));
+    gb_select_pause_init(&hold, pressed); // Resume with Select held: no re-entry.
+    assert(!gb_select_pause_step(&hold, pressed, 5000000));
+    assert(!gb_select_pause_step(&hold, released, 6000000));
+    assert(!gb_select_pause_step(&hold, pressed, 7000000));
+    assert(!gb_select_pause_step(&hold, released, 7500000));
+    assert(!gb_select_pause_step(&hold, pressed, 8000000));
+    assert(!gb_select_pause_step(&hold, pressed, 8500000));
+    assert(gb_select_pause_step(&hold, pressed, 9000000));
+    assert(!gb_select_pause_step(&hold, (pad_sample_t){0}, 10000000));
+    assert(!gb_select_pause_step(&hold, pressed, 11000000));
+    assert(!gb_select_pause_step(&hold, pressed, 13000000)); // Reconnect held.
+
     test_keyboard();
     pad_sample_t stick = {.connected = true};
     gb_input_left_stick(&stick, 160, -160);

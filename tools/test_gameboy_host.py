@@ -17,6 +17,7 @@ def main():
     includes = ['-Itests/stubs', '-Imain', '-Icomponents/gb_core/include',
                 '-Icomponents/gb_core/gb', '-Icomponents/minigb_apu']
     cases = [
+        ('gamepad_test', ['main/gamepad_test.c']),
         ('iine_protocol', ['components/bluepad32/parser/uni_iine_protocol.c']),
         ('bt_le_iine', ['components/bluepad32/parser/uni_iine_protocol.c',
                         'components/btstack/src/btstack_util.c']),
@@ -96,7 +97,7 @@ def main():
                    '-Itests/keyboard_stubs', '-Icomponents/bluepad32/include', '-Icomponents/btstack/src',
                    'tests/test_bt_setup.c', '-o', str(executable)]
         run('bt_setup_' + target, [(command, ROOT), ([str(executable)], work)])
-    for name in ['ui_font', 'verify_firmware', 'package_gameboy_release', 'pack_roms', 'gameboy_layout', 'gb_web_delete']:
+    for name in ['ui_font', 'verify_firmware', 'package_gameboy_release', 'pack_roms', 'gameboy_layout', 'gb_web_delete', 'home_menu']:
         run(name, [([sys.executable, '-B', str(ROOT / f'tests/test_{name}.py')], ROOT)])
     summary = {'passed': sum(item['passed'] for item in results),
                'failed': sum(not item['passed'] for item in results),

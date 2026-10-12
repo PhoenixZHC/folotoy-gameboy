@@ -272,7 +272,8 @@ static uint8_t glyph_column(char character, int column) {
     unsigned char c = (unsigned char)toupper((unsigned char)character);
     if (c >= '0' && c <= '9') return s_digits[c - '0'][column];
     if (c >= 'A' && c <= 'Z') return s_letters[c - 'A'][column];
-    if (c == '-') return column == 2 ? 0x08 : 0;
+    if (c == '-') return 0x08;
+    if (c == '+') return column == 2 ? 0x1c : 0x08;
     if (c == '_') return column < 5 ? 0x40 : 0;
     if (c == '.') return column == 2 ? 0x40 : 0;
     if (c == ':') return column == 2 ? 0x24 : 0;
@@ -386,6 +387,39 @@ static int ui_text_width(const char *text) {
     const unsigned char *cursor = (const unsigned char *)text;
     while (*cursor) width += ui_next_codepoint(&cursor) > 127 ? 17 : 13;
     return width;
+}
+
+typedef struct { int row, rows; } test_strip_t;
+static void test_fill(void *context, int x, int y, int w, int h, uint16_t color) {
+    test_strip_t *strip = context;
+    ui_fill(strip->row, strip->rows, x, y, w, h, __builtin_bswap16(color));
+}
+static void test_text(void *context, int x, int y, const char *text, uint16_t color, bool small) {
+    test_strip_t *strip = context;
+    if (!small) {
+        ui_text(strip->row, strip->rows, x, y, 234, text, __builtin_bswap16(color));
+        return;
+    }
+    for (int i=0; text[i] && x+i*6+5 < 234; ++i)
+        for (int col=0; col<5; ++col)
+            for (int py=0; py<7; ++py)
+                if (glyph_column(text[i],col) & (1u<<py))
+                    test_fill(context,x+i*6+col,y+py,1,1,color);
+}
+
+esp_err_t gb_display_gamepad_test(const gamepad_test_state_t *state, uint32_t now, int battery) {
+    if (!s_ready || !state) return ESP_ERR_INVALID_ARG;
+    esp_err_t e = wait_frame_idle();
+    if (e != ESP_OK) return e;
+    s_previous_valid = false;
+    for (int row=0; row<BSP_LCD_H; row+=STRIP_ROWS) {
+        test_strip_t strip = {row, BSP_LCD_H-row < STRIP_ROWS ? BSP_LCD_H-row : STRIP_ROWS};
+        const gamepad_test_canvas_t canvas = {&strip, test_fill, test_text};
+        gamepad_test_render(state, now, battery, &canvas);
+        e = send_strip(0,row,BSP_LCD_W,strip.rows);
+        if (e != ESP_OK) return e;
+    }
+    return ESP_OK;
 }
 
 esp_err_t gb_display_footer(const char *text, uint32_t scroll_px) {

@@ -5,7 +5,7 @@
 FoloToy AI Passport 是一个开放式可穿戴 AI 硬件，本仓库是这款 AI 硬件的开发基线。它不只展示"板子能运行什么"，还把开发应用所需的**硬件事实、稳定接口、资源边界、参考实现和验收方法**放在同一仓库中。
 
 当前检出目录包含 [Game Boy 固件移植](../README.zh_CN.md)。下方硬件资料描述上游 AI Passport 基线；本目录的演示应用和分区布局已由模拟器固件替换。
-当前本地固件为 **1.7**。1.7 已按明确批准仅更新 COM14 的 0x10000，写入校验、分区匹配、版本及 35 秒启动检查通过；游戏、存档、设置和配对分区未写入。240 秒观察捕获 12 个窗口，覆盖卡比和宇宙巡航机：模拟 59.6–59.8 fps、显示 14.9–29.8 fps，声音开启且输出采样递增，未报告崩溃、音频／显示丢块或输入积压丢弃。用户明确反馈“流畅度大幅改善，声音流畅也改善了，可以听到了”。这确认本轮体验改善，不是全部游戏、全部手柄或恒定显示帧率的保证。 [Performance](development/gameboy-performance.zh_CN.md).
+GameBoy 1.8 十四游戏完整包已于 2026-10-12 烧录到 COM14，用户随后反馈“测试下来没问题”。本次确认限于用户实际操作范围，不外推为全部游戏、全部手柄或长期稳定性验收。
 
 预装游戏由 2 款扩充至 14 款，完整名单及本次输入／性能更新见[累计更新说明](development/release/gameboy-firmware.zh_CN.md)。仅应用升级不会安装预装游戏。
 
@@ -136,3 +136,5 @@ GitHub 社区治理文档：[CONTRIBUTING.zh_CN.md](../.github/CONTRIBUTING.zh_C
 - [Game Boy 1.5 classics](development/gameboy-classics-1.5.zh_CN.md)：14 款游戏清单、分区容量和 COM14 实测记录。
 
 - [Game Boy 1.7](development/gameboy-performance.zh_CN.md): 性能优化与验证边界。
+
+[GameBoy 1.8 中英文发布表单](development/release/gameboy-1.8-form.zh_CN.md) · [手柄支持与测试](development/controller-test.zh_CN.md)

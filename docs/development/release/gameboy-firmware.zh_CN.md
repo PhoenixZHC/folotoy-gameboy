@@ -2,6 +2,21 @@
 
 # Game Boy 固件镜像与 GitHub 提交
 
+## 1.8 十四游戏完整包烧录（2026-10-12）
+
+已按用户要求将 `artifacts/releases/FoloToy-GameBoy-1.8-14games-full.bin` 从 `0x0` 写入 COM14，覆盖原 FC 游戏、存档、设置及配对信息。镜像为 8,388,608 字节，包含原选集十四款 GB 游戏，各 ROM SHA-256 与 1.7 清单一致。完整包 SHA-256：`b7aeab13ae5215b286d714c42a942b88ac3af01bacf45d13bc87165ef5b99b82`；应用 SHA-256：`cd567b0217eb9f01cdd7789b9c2283afe6cd6d3fe8bc0dccbcbc5d73ee79d519`。同目录 manifest 保存应用、ELF 和游戏身份。
+
+本次 ESP-IDF 5.5.3 增量构建、完整包生成及复验、烧录写入哈希检查通过。30 秒串口观察有 BLE 扫描活动，未见 panic/watchdog 标记，但未捕获完整启动身份行；用户随后反馈“测试下来没问题”；未提供逐游戏通关、手柄固件版本或耐久测试清单，不扩大验收范围。提交前复验：38 组主机检查通过、0 失败（32 组定向检查及 6 组补充检查），actionlint 通过。复用本会话已验证且未变化的 ESP-IDF 5.5.3 应用；十四款源 ROM、完整包及组件一致性重新核验通过。完整 Bash 门禁在本机不可用，原生检查不宣称其入口已通过。下文“1.8 未烧录”为本次之前的历史记录。
+
+## 全页面 Select 返回（2026-10-12）
+
+所有原有长按 OK 返回/退出操作均支持长按 Select 1 秒，机身 OK 保留：设置（编辑时先结束编辑）、手柄测试、游戏管理、游戏列表/空列表、暂停菜单（保存成功后退出游戏）。配对取消/重试也复用该事件，但未连接或确认前没有可用手柄输入时仍需机身按键。进入页面及从子页面返回时重新建立持键基线，必须释放后再次长按，避免连续跨页退出。测试页 Select 短按用于观察，持续 1 秒返回。 GameBoy 1.8 十四游戏完整包已于 2026-10-12 烧录到 COM14，用户随后反馈“测试下来没问题”。本次确认限于用户实际操作范围，不外推为全部游戏、全部手柄或长期稳定性验收。
+
+
+## 2026-10-12 手柄更新
+
+GameBoy 1.8 十四游戏完整包已于 2026-10-12 烧录到 COM14，用户随后反馈“测试下来没问题”。本次确认限于用户实际操作范围，不外推为全部游戏、全部手柄或长期稳定性验收。
+
 本产品采用仓库根目录 `partitions.csv` 中的五个分区，不采用上游三分区模板。清洁版镜像长度**恰好为 8,388,608 字节（8 MiB）**：`0x0` 为 ESP32-C3 引导程序，`0x8000` 为分区表，`0x10000` 为应用，`0x710000` 为可重复生成的初始 SPIFFS 镜像；其余字节全部为 `0xFF`。尤其是 NVS（`0x9000`–`0xEFFF`）、PHY（`0xF000`–`0xFFFF`）及整个 ROM 区（`0x310000`–`0x70FFFF`）不包含设置、手柄绑定或游戏。初始存档文件系统只包含公开的 `assets/initial_saves/README.txt`，没有游戏进度。
 
 ## 1.7 累计更新说明（2026-10-10）
@@ -28,7 +43,7 @@ Get-FileHash -Algorithm SHA256 -LiteralPath 'artifacts\releases\FoloToy-GameBoy-
 
 ## 可选预装游戏
 
-当前经典版为 `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`，使用 `build/release-1.7` 的正式应用（`GB_SIM_TEST=OFF`）。14 款清单和分区容量沿用[1.5 选集](../gameboy-classics-1.5.zh_CN.md)，ROM 分区逐字节相同。`FoloToy-GameBoy-1.7-app.bin` 用于兼容分区的仅应用更新（`0x10000`）。1.7 已通过仅应用写入／启动检查，用户确认画面与声音明显改善。旧包保留，下方为历史双游戏打包示例。
+历史 1.7 经典版为 `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`，使用 `build/release-1.7` 的正式应用（`GB_SIM_TEST=OFF`）。14 款清单和分区容量沿用[1.5 选集](../gameboy-classics-1.5.zh_CN.md)，ROM 分区逐字节相同。`FoloToy-GameBoy-1.7-app.bin` 用于兼容分区的仅应用更新（`0x10000`）。1.7 已通过仅应用写入／启动检查，用户确认画面与声音明显改善。旧包保留，下方为历史双游戏打包示例。
 
 通过重复的 `--rom` 参数，将本地游戏放入普通可写 ROM 分区。原文件名过长时，按相同顺序为每个 ROM 指定一个 `--rom-name`（各不超过 31 个 UTF-8 字节）；不改名、不修改源文件。不指定 `--output` 时，预装模式生成 `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`；不传 `--rom` 仍生成 CI 使用的无游戏清洁版。
 

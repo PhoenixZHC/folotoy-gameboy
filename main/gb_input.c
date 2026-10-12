@@ -1,5 +1,31 @@
 #include "gb_input.h"
 
+void gb_select_pause_init(gb_select_pause_t *s, pad_sample_t p) {
+    *s = (gb_select_pause_t){.connected=p.connected, .armed=p.connected && !p.view};
+}
+
+bool gb_select_pause_step(gb_select_pause_t *s, pad_sample_t p, int64_t now_us) {
+    if (!p.connected || !s->connected) {
+        gb_select_pause_init(s, p);
+        return false;
+    }
+    if (!p.view) {
+        s->armed = true;
+        s->holding = false;
+        return false;
+    }
+    if (!s->armed) return false;
+    if (!s->holding) {
+        s->holding = true;
+        s->started_us = now_us;
+    }
+    if (now_us - s->started_us < GB_SELECT_PAUSE_US) return false;
+    s->armed = false;
+    return true;
+}
+
+
+
 static unsigned sample_bits(pad_sample_t p) {
     return (p.right ? 1u : 0) | (p.left ? 2u : 0) |
            (p.up ? 4u : 0) | (p.down ? 8u : 0) |

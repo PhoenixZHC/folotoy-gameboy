@@ -2,6 +2,15 @@
 
 # Game Boy baseline acceptance
 
+## Global Select return (2026-10-12)
+
+Every existing long-OK back/exit action also accepts a one-second Select hold: Settings (finish editing first), Controller test, Game management, game/empty lists, and Pause (exit after a successful save). Pairing cancel/retry uses the same event, but board buttons remain necessary when no controller input is available before connection/confirmation. Entry and return from child pages require release before another hold, preventing cascading exits. In Controller test, a short Select press is displayed; a one-second hold returns. The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability.
+
+
+## Controller batch (2026-10-12)
+
+The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability. Build, full-image validation and write hash verification passed. Host evidence is recorded below and in the handoff record. A 30-second serial observation showed BLE discovery without panic/watchdog markers, but did not capture complete startup identity lines. No new frame-rate measurements or per-game playthrough results were collected. See [firmware record](release/gameboy-firmware.md).
+
 ## 1.7 device retest and delivery (2026-10-10)
 
 With explicit approval, only COM14 address 0x10000 was updated to 1.7. Write/hash, partition compatibility, version and 35-second startup checks passed; game, save, settings and pairing partitions were not written. A 240-second observation captured 12 windows across Kirby and Gradius: emulation 59.6–59.8 fps, display 14.9–29.8 fps, audio enabled and output samples increasing, with no reported crashes, audio/display drops or input backlog discards. The user confirmed substantially improved smoothness and smoother audible sound. This accepts the observed experience, not every game/controller or a constant display frame rate.

@@ -3,6 +3,7 @@
 #include "esp_err.h"
 #include "gamepad_discovery.h"
 #include "gb_input.h"
+#include "gamepad_test.h"
 
 // 在独立任务中启动 BTstack。调用者周期性读取输入快照。
 esp_err_t gamepad_start(void);
@@ -16,3 +17,6 @@ gamepad_discovery_t gamepad_discovery_snapshot(void);
 void gamepad_begin_discovery(void);
 bool gamepad_select_candidate(size_t index);
 void gamepad_clear_selection(void);
+// One connection only; cancellation/disconnection revokes the approval.
+bool gamepad_confirm_iine(void);
+gamepad_test_state_t gamepad_test_snapshot(void);

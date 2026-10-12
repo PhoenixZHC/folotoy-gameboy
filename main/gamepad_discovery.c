@@ -54,6 +54,9 @@ bool gamepad_discovery_select(gamepad_discovery_t *state, size_t index) {
     if (!state || index >= state->count) return false;
     memcpy(state->selected_address, state->candidates[index].address, 6);
     state->selected = true;
+    state->iine_confirmation_pending = false;
+    state->iine_confirmation_requested = false;
+    state->iine_firmware = 0;
     state->passkey_visible = false;
     state->passkey = 0;
     state->pairing_failed = false;
@@ -71,6 +74,9 @@ void gamepad_discovery_begin_scan(gamepad_discovery_t *state) {
 void gamepad_discovery_clear_selection(gamepad_discovery_t *state) {
     if (!state) return;
     state->selected = false;
+    state->iine_confirmation_pending = false;
+    state->iine_confirmation_requested = false;
+    state->iine_firmware = 0;
     state->passkey_visible = false;
     state->passkey = 0;
     state->pairing_failed = false;
@@ -100,5 +106,27 @@ void gamepad_discovery_pairing_done(gamepad_discovery_t *state, const uint8_t ad
     state->passkey_visible = false;
     state->passkey = 0;
     state->pairing_failed = !success;
+    if (!success) {
+        state->iine_confirmation_pending = false;
+        state->iine_confirmation_requested = false;
+        state->iine_firmware = 0;
+    }
     state->revision++;
+}
+
+void gamepad_discovery_iine_confirmation(gamepad_discovery_t *state, const uint8_t address[6],
+                                        bool pending, uint16_t firmware) {
+    if (!gamepad_discovery_should_connect(state, address)) return;
+    state->iine_confirmation_pending = pending;
+    state->iine_confirmation_requested = false;
+    state->iine_firmware = firmware;
+    state->revision++;
+}
+
+bool gamepad_discovery_confirm_iine(gamepad_discovery_t *state) {
+    if (!state || !state->selected || !state->iine_confirmation_pending ||
+        state->iine_confirmation_requested) return false;
+    state->iine_confirmation_requested = true;
+    state->revision++;
+    return true;
 }

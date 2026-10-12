@@ -19,13 +19,14 @@ static const uint8_t mode_payload[] = {2, 0xdf, 0xab};
 static const uint8_t test_payload[] = {5, 0xdf, 0xab, 0, 6, 5};
 static const uint8_t caps_payload[] = {0, 1};
 enum { REQUEST_TIMEOUT_MS = 4500, TICK_MS = 50 };
-typedef enum { SERVICE, CHARACTERISTICS, SUBSCRIBE, INFO, CAPS, MODE, DELAY, TEST, RUNNING } step_t;
+typedef enum { SERVICE, CHARACTERISTICS, SUBSCRIBE, INFO, CONFIRM, CAPS, MODE, DELAY, TEST, RUNNING } step_t;
 typedef struct {
     uni_hid_device_t* device;
     hci_con_handle_t handle;
     step_t step;
     bool busy, listening, replied, ready;
     uint8_t serial_counter, serial, attempts;
+    uint16_t firmware;
     uint32_t deadline, next_keepalive;
     gatt_client_service_t service;
     gatt_client_characteristic_t write, notify;
@@ -36,6 +37,7 @@ typedef struct {
     iine_input_state_t input; // Canonical delta state, never remapped in place.
 } iine_link_t;
 static iine_link_t links[CONFIG_BLUEPAD32_MAX_DEVICES];
+static uni_iine_confirmation_cb_t confirmation_callback;
 static void packet_handler(uint8_t type, uint16_t channel, uint8_t* packet, uint16_t size);
 
 static bool due(uint32_t now, uint32_t deadline) { return (int32_t)(now - deadline) >= 0; }
@@ -50,6 +52,7 @@ void uni_bt_le_iine_reset(uni_hid_device_t* device) {
     for (size_t i = 0; i < ARRAY_SIZE(links); ++i) {
         iine_link_t* s = &links[i];
         if (s->device != device) continue;
+        if (confirmation_callback) confirmation_callback(device, false, 0);
         btstack_run_loop_remove_timer(&s->timer);
         if (s->listening) gatt_client_stop_listening_for_characteristic_value_updates(&s->listener);
         memset(s, 0, sizeof(*s));
@@ -69,6 +72,32 @@ static void advance(iine_link_t* s, step_t step) {
     s->attempts = 0;
     s->replied = false;
     s->deadline = btstack_run_loop_get_time_ms();
+}
+
+void uni_bt_le_iine_set_confirmation_callback(uni_iine_confirmation_cb_t callback) {
+    confirmation_callback = callback;
+}
+
+uint16_t uni_bt_le_iine_firmware(const uni_hid_device_t* device) {
+    if (!device) return 0;
+    iine_link_t* s = for_handle(device->conn.handle);
+    return s && s->device == device ? s->firmware : 0;
+}
+
+void uni_bt_le_iine_confirm(uni_hid_device_t* device) {
+    if (!device) return;
+    iine_link_t* s = for_handle(device->conn.handle);
+    if (!s || s->device != device || s->step != CONFIRM) return;
+    if (due(btstack_run_loop_get_time_ms(), s->deadline)) {
+        fail(s, "firmware confirmation timed out");
+        return;
+    }
+    if (confirmation_callback) confirmation_callback(device, false, 0);
+    logi("IINE L1241: user accepted unverified firmware for this connection\n");
+    btstack_run_loop_remove_timer(&device->connection_timer);
+    btstack_run_loop_set_timer(&device->connection_timer, 30000);
+    btstack_run_loop_add_timer(&device->connection_timer);
+    advance(s, CAPS);
 }
 
 static bool check_start(iine_link_t* s, uint8_t status) {
@@ -119,12 +148,26 @@ static void tick(btstack_timer_source_t* timer) {
     } else if (s->step == INFO || s->step == CAPS) {
         if (s->replied) {
             if (s->step == INFO) {
-                static const uint8_t identity[] = {7, 0x10, 2, 0x20, 0x27, 2};
+                static const uint8_t identity[] = {7, 0x10, 2, 0x20};
                 if (s->reply.length != 8 || memcmp(s->reply.payload, identity, sizeof(identity))) {
-                    fail(s, "unsupported identity (requires L1241 FW 27.02)");
-                } else {
+                    fail(s, "unsupported identity (requires L1241 VID/PID)");
+                } else if (s->reply.payload[4] == 0x27 && s->reply.payload[5] == 2) {
+                    s->firmware = 0x2702;
                     logi("IINE L1241 FW 27.02 identified\n");
                     advance(s, CAPS);
+                } else if (confirmation_callback) {
+                    uint16_t firmware = ((uint16_t)s->reply.payload[4] << 8) | s->reply.payload[5];
+                    s->firmware = firmware;
+                    advance(s, CONFIRM);
+                    s->deadline = now + 60000;
+                    btstack_run_loop_remove_timer(&s->device->connection_timer);
+                    btstack_run_loop_set_timer(&s->device->connection_timer, 65000);
+                    btstack_run_loop_add_timer(&s->device->connection_timer);
+                    logi("IINE L1241 FW %02x.%02x is unverified; waiting for user\n",
+                         s->reply.payload[4], s->reply.payload[5]);
+                    confirmation_callback(s->device, true, firmware);
+                } else {
+                    fail(s, "unverified firmware requires explicit confirmation");
                 }
             } else advance(s, MODE);
         } else if (due(now, s->deadline)) {
@@ -138,6 +181,8 @@ static void tick(btstack_timer_source_t* timer) {
                              s->step == CAPS ? sizeof(caps_payload) : 0);
             }
         }
+    } else if (s->step == CONFIRM) {
+        if (due(now, s->deadline)) fail(s, "firmware confirmation timed out");
     } else if (s->step == MODE) {
         if (send_request(s, 0x1d, mode_payload, sizeof(mode_payload))) {
             s->step = DELAY;

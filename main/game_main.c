@@ -94,7 +94,50 @@ static gb_menu_action_t board_menu_action(button_message_t msg) {
     return GB_MENU_NONE;
 }
 
+// Route a one-second Select hold through the existing board long-OK action.
+static BaseType_t menu_button_receive(gb_select_pause_t *hold, button_message_t *msg,
+                                     TickType_t timeout) {
+    BaseType_t received = xQueueReceive(s_buttons, msg, timeout);
+    if (gb_select_pause_step(hold, gamepad_snapshot(), esp_timer_get_time())) {
+        *msg = (button_message_t){.button=BSP_BTN_OK, .event=BSP_BTN_LONG};
+        return pdTRUE;
+    }
+    return received;
+}
+
+static void gamepad_test_loop(void) {
+    gb_select_pause_t select_back;
+    gb_select_pause_init(&select_back, gamepad_snapshot());
+    xQueueReset(s_buttons);
+    int battery = battery_percent();
+    int64_t battery_refreshed = esp_timer_get_time();
+    while (true) {
+        button_message_t msg;
+        while (menu_button_receive(&select_back, &msg, 0) == pdTRUE) {
+            if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) {
+                xQueueReset(s_buttons);
+                return;
+            }
+        }
+        gamepad_test_state_t state = gamepad_test_snapshot();
+        int64_t now = esp_timer_get_time();
+        if (now - battery_refreshed >= 5000000) {
+            battery = battery_percent();
+            battery_refreshed = now;
+        }
+        esp_err_t e = gb_display_gamepad_test(&state, (uint32_t)(now/1000), battery);
+        if (e != ESP_OK) {
+            ESP_LOGE(TAG, "gamepad test display: %s", esp_err_to_name(e));
+            return;
+        }
+        // B/Start remain display-only; a one-second Select hold returns.
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 static void settings_loop(void) {
+    gb_select_pause_t select_back;
+    gb_select_pause_init(&select_back, gamepad_snapshot());
     const char *version = esp_app_get_description()->version;
     size_t selected = 0;
     bool editing = false, dirty = true;
@@ -104,7 +147,7 @@ static void settings_loop(void) {
     int64_t footer_started = esp_timer_get_time(), footer_refreshed = 0;
     while (true) {
         button_message_t msg;
-        bool board_event = xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
+        bool board_event = menu_button_receive(&select_back, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
         gb_menu_action_t pad_action = gb_menu_input_step(&pad_input, gamepad_snapshot());
         gb_menu_action_t action = board_event ? board_menu_action(msg) : GB_MENU_NONE;
         if (board_event && msg.event == BSP_BTN_LONG && msg.button == BSP_BTN_OK)
@@ -140,8 +183,8 @@ static void settings_loop(void) {
             dirty = true;
         }
         int64_t now = esp_timer_get_time();
-        const char *footer = editing ? "上/下调整 OK保存 长按OK结束"
-                                     : "上/下选择 OK确认 长按OK返回";
+        const char *footer = editing ? "上/下调整 OK保存 长按OK/Select结束"
+                                     : "上/下选择 OK确认 长按OK/Select返回";
         if (dirty || now - refreshed > 15000000) {
             char vol[32], bright[32], sound[32], version_hint[64];
             snprintf(vol, sizeof(vol), "音量 %u%%", s_volume);
@@ -165,23 +208,28 @@ static void settings_loop(void) {
 }
 
 static size_t home_loop(void) {
-    const char *items[] = {"配对键盘或手柄", "游戏管理", "设置"};
+    const char *items[] = {"配对键盘或手柄", "游戏管理", "手柄测试", "设置"};
     size_t selected = 0;
     bool dirty = true;
     int64_t refreshed = 0;
+    gb_menu_input_t pad_input;
+    gb_menu_input_init(&pad_input, gamepad_snapshot());
     while (true) {
         button_message_t msg;
-        if (xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(100)) == pdTRUE &&
-            msg.event == BSP_BTN_CLICK) {
-            if (msg.button == BSP_BTN_UP) selected = (selected + 2) % 3;
-            else if (msg.button == BSP_BTN_DOWN) selected = (selected + 1) % 3;
-            else if (msg.button == BSP_BTN_OK) return selected;
+        bool board_event = xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
+        pad_sample_t sample = gamepad_snapshot();
+        if (sample.connected != pad_input.connected) dirty = true;
+        gb_menu_action_t pad_action = gb_menu_input_step(&pad_input, sample);
+        gb_menu_action_t action = board_event ? board_menu_action(msg) : GB_MENU_NONE;
+        if (action == GB_MENU_NONE) action = pad_action;
+        if (action == GB_MENU_UP || action == GB_MENU_DOWN) {
+            selected = (selected + (action == GB_MENU_UP ? 3 : 1)) % 4;
             dirty = true;
-        }
+        } else if (action == GB_MENU_CONFIRM) return selected;
         int64_t now = esp_timer_get_time();
         if (dirty || now - refreshed > 15000000) {
             show_ui("GB模拟器", gamepad_snapshot().connected ? "输入设备已连接" : "请选择操作",
-                    items, 3, selected, "上/下 选择 OK 确认");
+                    items, 4, selected, "上/下选择 A/OK确认");
             refreshed = now;
             dirty = false;
         }
@@ -189,6 +237,8 @@ static size_t home_loop(void) {
 }
 
 static void management_loop(void) {
+    gb_select_pause_t select_back;
+    gb_select_pause_init(&select_back, gamepad_snapshot());
     gamepad_set_scanning(false);
     vTaskDelay(pdMS_TO_TICKS(100));
     if (s_saves_ready && gb_storage_catalog_trusted() &&
@@ -199,8 +249,10 @@ static void management_loop(void) {
         show_ui("游戏管理", "内存或网络不可用", items, 2, 1,
                 "OK 返回");
         button_message_t msg;
-        while (xQueueReceive(s_buttons, &msg, portMAX_DELAY) == pdTRUE)
-            if (msg.button == BSP_BTN_OK) return;
+        while (true) {
+            if (menu_button_receive(&select_back, &msg, pdMS_TO_TICKS(50)) == pdTRUE &&
+                msg.button == BSP_BTN_OK) return;
+        }
     }
     gb_web_status_t status = gb_web_status();
     // 清除打开此页时残留的 OK 事件；仅长按才退出。
@@ -208,7 +260,7 @@ static void management_loop(void) {
     int64_t refreshed = 0;
     while (true) {
         button_message_t msg;
-        if (xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(200)) == pdTRUE &&
+        if (menu_button_receive(&select_back, &msg, pdMS_TO_TICKS(50)) == pdTRUE &&
             msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) {
             ESP_LOGI(TAG, "Leaving game management: OK long press");
             break;
@@ -222,7 +274,7 @@ static void management_loop(void) {
                      (unsigned)(gb_storage_available() / 1024));
             const char *items[] = {ssid, "地址 192.168.4.1", games, space};
             gb_ui_model_t model = {.title = "游戏管理", .hint = "连接WiFi后打开网页",
-                                   .count = 4, .selected = 4, .footer = "长按OK 返回",
+                                   .count = 4, .selected = 4, .footer = "长按OK/Select 返回",
                                    .battery_percent = battery_percent(), .compact = true};
             for (size_t i = 0; i < 4; i++) model.items[i] = items[i];
             esp_err_t draw_error = gb_display_ui(&model);
@@ -275,6 +327,8 @@ static bool screen_off_loop(void) {
 }
 
 static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool connected) {
+    gb_select_pause_t select_back;
+    gb_select_pause_init(&select_back, gamepad_snapshot());
     gamepad_set_gameplay(false);
     bool battery = gb_port_has_battery(session);
     const char *items[] = {"继续游戏", battery ? "同步电池存档" : "无电池存档",
@@ -288,7 +342,7 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
     gb_menu_input_t pad_input;
     gb_menu_input_init(&pad_input, gamepad_snapshot());
     while (true) {
-        bool board_event = xQueueReceive(s_buttons, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
+        bool board_event = menu_button_receive(&select_back, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
         pad_sample_t pad = gamepad_snapshot();
         gb_menu_action_t pad_action = gb_menu_input_step(&pad_input, pad);
         gb_menu_action_t action = board_event ? board_menu_action(msg) : GB_MENU_NONE;
@@ -315,12 +369,14 @@ static bool pause_game(gb_session_t *session, const uint8_t hash[32], bool conne
                                     ? "同步完成，重进后读取" : "同步失败，进度仅在内存";
                 } else if (selected == 2) {
                     settings_loop();
+                    gb_select_pause_init(&select_back, gamepad_snapshot());
                     gb_menu_input_init(&pad_input, gamepad_snapshot());
                     hint = battery ? "游戏内存档，重进后读取" : "此游戏无电池存档";
                 } else if (selected == 3) {
                     if (!screen_off_loop()) hint = "息屏恢复失败，请重试";
                     else if (gamepad_snapshot().connected) return true;
                     else hint = "请重新连接输入设备";
+                    gb_select_pause_init(&select_back, gamepad_snapshot());
                     gb_menu_input_init(&pad_input, gamepad_snapshot());
                 } else {
                     if (gb_saves_write(session, hash)) return false;
@@ -364,6 +420,8 @@ static game_button_actions_t poll_game_buttons(void) {
 }
 
 static bool pairing_loop(void) {
+    gb_select_pause_t select_back;
+    gb_select_pause_init(&select_back, gamepad_snapshot());
     gamepad_begin_discovery();
     size_t selected = 0;
     uint32_t shown_revision = UINT32_MAX;
@@ -374,7 +432,7 @@ static bool pairing_loop(void) {
         gamepad_discovery_t discovery = gamepad_discovery_snapshot();
         if (discovery.count && selected >= discovery.count) selected = discovery.count - 1;
         button_message_t msg;
-        while (xQueueReceive(s_buttons, &msg, 0) == pdTRUE) {
+        while (menu_button_receive(&select_back, &msg, 0) == pdTRUE) {
             if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) {
                 if (!discovery.selected) return false;
                 gamepad_clear_selection();
@@ -383,6 +441,13 @@ static bool pairing_loop(void) {
                 selected_at_us = 0;
                 connection_slow = false;
                 dirty = true;
+            } else if (discovery.iine_confirmation_pending &&
+                       msg.button == BSP_BTN_OK && msg.event == BSP_BTN_CLICK) {
+                if (gamepad_confirm_iine()) {
+                    selected_at_us = esp_timer_get_time();
+                    connection_slow = false;
+                    dirty = true;
+                }
             } else if (!discovery.selected && msg.event == BSP_BTN_CLICK && discovery.count) {
                 if (msg.button == BSP_BTN_UP)
                     selected = (selected + discovery.count - 1) % discovery.count;
@@ -409,18 +474,27 @@ static bool pairing_loop(void) {
             size_t count = 0, selected_item = 0;
             const char *hint = "键盘或手柄开启配对";
             if (discovery.selected) {
-                if (discovery.passkey_visible) {
+                if (discovery.iine_confirmation_pending) {
+                    snprintf(choices[0], sizeof(choices[0]), "L1241 FW %02X.%02X",
+                             (unsigned)(discovery.iine_firmware >> 8),
+                             (unsigned)(discovery.iine_firmware & 0xff));
+                    items[0] = choices[0];
+                    items[1] = "版本未验证";
+                    items[2] = "OK 尝试连接";
+                    count = 3;
+                    hint = "长按OK/Select 取消";
+                } else if (discovery.passkey_visible) {
                     snprintf(choices[0], sizeof(choices[0]), "配对码 %06lu",
                              (unsigned long)discovery.passkey);
                     items[0] = choices[0];
                     items[1] = "键盘输入后按Enter";
                     count = 2;
-                    hint = "长按OK 取消";
+                    hint = "长按OK/Select 取消";
                 } else {
                     items[0] = discovery.pairing_failed ? "配对失败 请重试" :
                                connection_slow ? "连接较慢 请重试" : "连接中...";
                     count = 1;
-                    hint = "长按OK 重试";
+                    hint = "长按OK/Select 重试";
                 }
             } else if (!discovery.count) {
                 items[0] = "扫描中...";
@@ -452,7 +526,7 @@ static bool pairing_loop(void) {
 
 static bool prepare_game_screen(void) {
     esp_err_t e = gb_display_clear(GB_LCD_LIGHT);
-    if (e == ESP_OK) e = gb_display_game_hint("长按OK 暂停或退出");
+    if (e == ESP_OK) e = gb_display_game_hint("长按OK/Select 暂停");
     if (e != ESP_OK) ESP_LOGE(TAG, "game screen: %s", esp_err_to_name(e));
     return e == ESP_OK;
 }
@@ -520,10 +594,15 @@ static void run_game(size_t index) {
     gb_frame_pacing_t pacing;
     gb_frame_pacing_init(&pacing);
     uint32_t displayed_at_report = gb_display_completed();
+    gb_select_pause_t select_pause;
+    gb_select_pause_init(&select_pause, gamepad_snapshot());
     while (true) {
         game_button_actions_t board = poll_game_buttons();
         pad_sample_t pad = gamepad_frame_snapshot();
-        if (board.pause || !pad.connected) {
+        bool select_held = gb_select_pause_step(&select_pause, gamepad_snapshot(),
+                                               esp_timer_get_time());
+        if (board.pause || select_held || !pad.connected) {
+            if (select_held) ESP_LOGI(TAG, "Pause requested: Select long press");
             gb_port_set_keys(session, (gb_port_keys_t){0});
             if (audio_enabled && !gb_audio_stop()) {
                 destroy_game_session(session); show_error("声音停止失败"); return;
@@ -555,6 +634,7 @@ static void run_game(size_t index) {
             gb_frame_pacing_init(&pacing);
             displayed_at_report = gb_display_completed();
             gamepad_set_gameplay(true);
+            gb_select_pause_init(&select_pause, gamepad_snapshot());
             continue;
         }
         gb_keys_t keys = gb_input_map(pad);
@@ -675,6 +755,7 @@ static void run_game(size_t index) {
                 report_draw_frames = report_skip_frames = 0;
                 report_key_changes = report_multi_keys = 0;
                 gamepad_set_gameplay(true);
+                gb_select_pause_init(&select_pause, gamepad_snapshot());
             }
             last_save = esp_timer_get_time();
         }
@@ -705,30 +786,34 @@ static void run_game(size_t index) {
 }
 
 static void menu_loop(void) {
+    gb_select_pause_t select_back;
+    gb_select_pause_init(&select_back, gamepad_snapshot());
     size_t selected = 0;
     bool dirty = true, prev_up = false, prev_down = false, prev_a = false;
     while (true) {
         size_t count = gb_storage_count();
         if (!count) {
             const char *items[] = {"没有游戏"};
-            show_ui("游戏列表", "请到游戏管理上传", items, 1, 0, "长按OK 返回");
+            show_ui("游戏列表", "请到游戏管理上传", items, 1, 0, "长按OK/Select 返回");
             button_message_t msg;
-            while (xQueueReceive(s_buttons, &msg, portMAX_DELAY) == pdTRUE)
-                if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) return;
+            while (true) {
+                if (menu_button_receive(&select_back, &msg, pdMS_TO_TICKS(50)) == pdTRUE &&
+                    msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) return;
+            }
         }
         pad_sample_t pad = gamepad_snapshot();
         if (!pad.connected) return;
         button_message_t msg;
-        while (xQueueReceive(s_buttons, &msg, 0) == pdTRUE) {
+        while (menu_button_receive(&select_back, &msg, 0) == pdTRUE) {
             if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) return;
             if (msg.event != BSP_BTN_CLICK) continue;
             if (msg.button == BSP_BTN_UP) { selected = (selected + count - 1) % count; dirty = true; }
             if (msg.button == BSP_BTN_DOWN) { selected = (selected + 1) % count; dirty = true; }
-            if (msg.button == BSP_BTN_OK) { run_game(selected); dirty = true; }
+            if (msg.button == BSP_BTN_OK) { run_game(selected); gb_select_pause_init(&select_back, gamepad_snapshot()); dirty = true; }
         }
         if (pad.up && !prev_up) { selected = (selected + count - 1) % count; dirty = true; }
         if (pad.down && !prev_down) { selected = (selected + 1) % count; dirty = true; }
-        if (pad.a && !prev_a) { run_game(selected); dirty = true; }
+        if (pad.a && !prev_a) { run_game(selected); gb_select_pause_init(&select_back, gamepad_snapshot()); dirty = true; }
         prev_up = pad.up; prev_down = pad.down; prev_a = pad.a;
         if (dirty) {
             const char *items[GB_UI_MAX_ITEMS] = {0};
@@ -742,7 +827,7 @@ static void menu_loop(void) {
             size_t shown = count - first;
             if (shown > GB_UI_MAX_ITEMS) shown = GB_UI_MAX_ITEMS;
             show_ui("游戏列表", "请选择游戏", items, shown, selected - first,
-                    "上/下 OK开始 长按OK返回");
+                    "上/下 OK开始 长按OK/Select返回");
             dirty = false;
         }
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -810,6 +895,7 @@ void app_main(void) {
         size_t choice = home_loop();
         if (choice == 0 && pairing_loop()) menu_loop();
         else if (choice == 1) management_loop();
-        else if (choice == 2) settings_loop();
+        else if (choice == 2) gamepad_test_loop();
+        else if (choice == 3) settings_loop();
     }
 }

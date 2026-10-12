@@ -2,6 +2,10 @@
 
 # Game Boy 移植来源
 
+## 2026-10-12 手柄更新
+
+GameBoy 1.8 十四游戏完整包已于 2026-10-12 烧录到 COM14，用户随后反馈“测试下来没问题”。本次确认限于用户实际操作范围，不外推为全部游戏、全部手柄或长期稳定性验收。 L1241 适配、主页导航、手柄测试与 Select 长按功能见[手柄说明](controller-test.zh_CN.md)。FC 历史结果不替代 GameBoy 验收。
+
 - AI Passport BSP 与项目基线：[FoloToy/ai-passport](https://gitee.com/FoloToy/ai-passport)，提交 `cd73a8a6f1f95e010bfd83a08e2b915e38408308`。本移植更改应用、组件列表、分区及默认配置。上游硬件文档保留作参考。
 - 模拟器核心：[psychoplath9450/SUMI](https://github.com/psychoplath9450/SUMI)，提交 `1a1c47c3fc4fa7a7c2d4ffba0f55e1e7dfdad1cb`。复制的 `gb` 头文件经 `components/gb_core` 适配：Flash bank 访问、按卡带头分配 RAM、ROM 读失败报告及确定顺序的 16 位取指。原许可证见 `third_party_licenses/SUMI-LICENSE`。
 - 音频合成器：[deltabeard/minigb_apu](https://github.com/deltabeard/minigb_apu)，提交 `344d9814c0d834faf1a26ec97b57bedddefed8aa`，MIT 许可证见 `components/minigb_apu/LICENSE`。本项目适配 Game Boy 四声道 APU，生成 16 kHz 单声道 PCM，输出到开发板 ES8311。

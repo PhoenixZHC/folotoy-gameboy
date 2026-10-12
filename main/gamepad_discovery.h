@@ -21,6 +21,9 @@ typedef struct {
     bool passkey_visible;
     uint32_t passkey;
     bool pairing_failed;
+    bool iine_confirmation_pending;
+    bool iine_confirmation_requested;
+    uint16_t iine_firmware;
     uint32_t revision;
 } gamepad_discovery_t;
 
@@ -43,3 +46,7 @@ void gamepad_discovery_pairing_done(gamepad_discovery_t *state, const uint8_t ad
                                    bool success);
 // Truncate a BLE UTF-8 name only at a character boundary.
 void gamepad_copy_name(char *out, size_t capacity, const char *name);
+// Only the selected device may request permission to try unverified firmware.
+void gamepad_discovery_iine_confirmation(gamepad_discovery_t *state, const uint8_t address[6],
+                                        bool pending, uint16_t firmware);
+bool gamepad_discovery_confirm_iine(gamepad_discovery_t *state);

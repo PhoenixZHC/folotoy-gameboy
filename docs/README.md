@@ -5,7 +5,7 @@ English | [简体中文](README.zh_CN.md)
 FoloToy AI Passport is open wearable AI hardware. This repository is the development baseline for the device. It keeps the **hardware facts, stable interfaces, resource boundaries, reference implementations, and validation methods** needed to build applications in one place.
 
 This checkout contains a [Game Boy firmware port](../README.md). The hardware reference below describes the upstream AI Passport baseline; its demo application and partition layout have been replaced in this checkout.
-The current local firmware is **1.7**. With explicit approval, only COM14 address 0x10000 was updated to 1.7. Write/hash, partition compatibility, version and 35-second startup checks passed; game, save, settings and pairing partitions were not written. A 240-second observation captured 12 windows across Kirby and Gradius: emulation 59.6–59.8 fps, display 14.9–29.8 fps, audio enabled and output samples increasing, with no reported crashes, audio/display drops or input backlog discards. The user confirmed substantially improved smoothness and smoother audible sound. This accepts the observed experience, not every game/controller or a constant display frame rate. [Performance](development/gameboy-performance.md).
+The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability.
 
 The local preinstalled selection expands from two games to fourteen. See the [cumulative update notes](development/release/gameboy-firmware.md) for the full list and input/performance changes. Application-only updates do not install games.
 
@@ -138,3 +138,5 @@ GitHub community documents: [CONTRIBUTING.md](../.github/CONTRIBUTING.md), [CODE
 - [Game Boy 1.5 classics](development/gameboy-classics-1.5.md): fourteen-game selection, partition capacity and COM14 testing.
 
 - [Game Boy 1.7](development/gameboy-performance.md): performance work and verification limits.
+
+[GameBoy 1.8 release form](development/release/gameboy-1.8-form.md) · [Controller support and testing](development/controller-test.md)

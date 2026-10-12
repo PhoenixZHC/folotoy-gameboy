@@ -25,6 +25,9 @@ run_static_checks() {
 
     test_dir="$(mktemp -d /tmp/ai-passport-host-tests.XXXXXX)"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_gamepad_test.c main/gamepad_test.c -o "${test_dir}/test_gamepad_test"
+    "${test_dir}/test_gamepad_test"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_ui_pixel_math.c main/ui_pixel_math.c \
         -o "${test_dir}/test_ui_pixel_math"
     "${test_dir}/test_ui_pixel_math"
@@ -151,6 +154,7 @@ run_static_checks() {
         tests/test_gb_boot.c main/gb_boot.c main/gb_pixels.c -o "${test_dir}/test_gb_boot"
     (cd "${test_dir}" && ./test_gb_boot)
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_gb_web_delete.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_home_menu.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ui_font.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py

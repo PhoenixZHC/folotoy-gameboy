@@ -50,6 +50,25 @@ static void test_fresh_scan(void) {
 
 int main(void) {
     test_fresh_scan();
+    gamepad_discovery_t pending = {0};
+    const uint8_t iine[6] = {1,2,3,4,5,6}, unrelated[6] = {6,5,4,3,2,1};
+    assert(!gamepad_discovery_confirm_iine(&pending));
+    assert(gamepad_discovery_observe(&pending, iine, 0x0508, "IINE GAMEPAD"));
+    assert(gamepad_discovery_select(&pending, 0));
+    gamepad_discovery_iine_confirmation(&pending, unrelated, true, 0x2802);
+    assert(!pending.iine_confirmation_pending);
+    gamepad_discovery_iine_confirmation(&pending, iine, true, 0x2802);
+    assert(pending.iine_confirmation_pending && pending.iine_firmware == 0x2802);
+    assert(gamepad_discovery_confirm_iine(&pending));
+    assert(!gamepad_discovery_confirm_iine(&pending)); // Coalesce duplicate OK.
+    gamepad_discovery_pairing_done(&pending, iine, false);
+    assert(!pending.iine_confirmation_pending && !pending.iine_confirmation_requested);
+    gamepad_discovery_iine_confirmation(&pending, iine, true, 0x2802);
+    assert(gamepad_discovery_confirm_iine(&pending));
+    gamepad_discovery_clear_selection(&pending);
+    assert(!pending.iine_confirmation_pending && !pending.iine_confirmation_requested);
+    gamepad_discovery_iine_confirmation(&pending, iine, true, 0x2802);
+    assert(!pending.iine_confirmation_pending); // Ignore callbacks after cancellation.
     gamepad_discovery_t state = {0};
     const uint8_t xbox[6] = {0x44, 0x16, 0x22, 0x01, 0x02, 0x03};
     const uint8_t other[6] = {0x44, 0x16, 0x22, 0x01, 0x02, 0x04};

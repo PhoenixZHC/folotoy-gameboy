@@ -2,6 +2,10 @@
 
 # Game Boy Port Sources
 
+## 2026-10-12 controller update
+
+The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability. See [controller support](controller-test.md) for L1241, home navigation, input testing and Select holds. Historical FC results do not establish GameBoy acceptance.
+
 - AI Passport BSP and project baseline: [FoloToy/ai-passport](https://gitee.com/FoloToy/ai-passport), commit `cd73a8a6f1f95e010bfd83a08e2b915e38408308`. The application, component list, partition layout, and default configuration are changed for the game port. Upstream hardware documentation remains as reference material.
 - Emulator core: [psychoplath9450/SUMI](https://github.com/psychoplath9450/SUMI), commit `1a1c47c3fc4fa7a7c2d4ffba0f55e1e7dfdad1cb`. The copied `gb` headers are adapted through `components/gb_core`: Flash bank access, RAM allocation by cartridge header, ROM I/O failure reporting, and defined 16-bit instruction fetch order. Its original license is at `third_party_licenses/SUMI-LICENSE`.
 - Audio synthesizer: [deltabeard/minigb_apu](https://github.com/deltabeard/minigb_apu), commit `344d9814c0d834faf1a26ec97b57bedddefed8aa`, MIT license in `components/minigb_apu/LICENSE`. The project adapts its four-channel Game Boy APU to 16 kHz mono PCM and the board's ES8311 output.

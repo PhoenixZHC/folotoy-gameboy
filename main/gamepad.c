@@ -11,10 +11,12 @@
 #include "freertos/task.h"
 #include "uni.h"
 #include "bt/uni_bt.h"
+#include "bt/uni_bt_le_iine.h"
 
 static const char *TAG = "gamepad";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static pad_sample_t s_sample;
+static gamepad_test_state_t s_test;
 static gb_input_buffer_t s_input_buffer;
 static gamepad_discovery_t s_discovery;
 static uni_hid_device_t *s_owner;
@@ -52,7 +54,11 @@ static void apply_scan_policy(void *context) {
         if (memcmp(device->conn.btaddr, empty_address, sizeof(empty_address)) == 0) continue;
         taskENTER_CRITICAL(&s_lock);
         bool selected = gamepad_discovery_should_connect(&s_discovery, device->conn.btaddr);
+        bool confirm = selected && s_discovery.iine_confirmation_pending &&
+                       s_discovery.iine_confirmation_requested;
+        if (confirm) s_discovery.iine_confirmation_requested = false;
         taskEXIT_CRITICAL(&s_lock);
+        if (confirm) uni_bt_le_iine_confirm(device);
         if (selected) continue;
         if (gap_get_connection_type(device->conn.handle) == GAP_CONNECTION_INVALID)
             gap_connect_cancel();
@@ -84,6 +90,13 @@ static void set_sample(pad_sample_t sample) {
 pad_sample_t gamepad_snapshot(void) {
     taskENTER_CRITICAL(&s_lock);
     pad_sample_t copy = s_sample;
+    taskEXIT_CRITICAL(&s_lock);
+    return copy;
+}
+
+gamepad_test_state_t gamepad_test_snapshot(void) {
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_test_state_t copy = s_test;
     taskEXIT_CRITICAL(&s_lock);
     return copy;
 }
@@ -136,6 +149,20 @@ void gamepad_clear_selection(void) {
     update_scan_policy();
 }
 
+bool gamepad_confirm_iine(void) {
+    taskENTER_CRITICAL(&s_lock);
+    bool accepted = gamepad_discovery_confirm_iine(&s_discovery);
+    taskEXIT_CRITICAL(&s_lock);
+    if (accepted) update_scan_policy();
+    return accepted;
+}
+
+static void iine_confirmation(uni_hid_device_t *device, bool pending, uint16_t firmware) {
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_discovery_iine_confirmation(&s_discovery, device->conn.btaddr, pending, firmware);
+    taskEXIT_CRITICAL(&s_lock);
+}
+
 static void platform_init(int argc, const char **argv) {
     (void)argc;
     (void)argv;
@@ -185,6 +212,7 @@ static void security_event(uint8_t packet_type, uint16_t channel, uint8_t *packe
 }
 
 static void platform_ready(void) {
+    uni_bt_le_iine_set_confirmation_callback(iine_confirmation);
     s_security_events.callback = security_event;
     sm_add_event_handler(&s_security_events);
     uni_bt_start_scanning_and_autoconnect_unsafe();
@@ -223,6 +251,9 @@ static void device_disconnected(uni_hid_device_t *device) {
         btstack_run_loop_remove_timer(&s_passkey_timer);
     if (device != s_owner) return;
     s_owner = NULL;
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_test_reset(&s_test, false, false);
+    taskEXIT_CRITICAL(&s_lock);
     set_sample((pad_sample_t){0});
     update_scan_policy();
     ESP_LOGW(TAG, "controller disconnected; all buttons released");
@@ -238,6 +269,11 @@ static uni_error_t device_ready(uni_hid_device_t *device) {
         return UNI_ERROR_IGNORE_DEVICE;
     btstack_run_loop_remove_timer(&s_passkey_timer);
     s_owner = device;
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_test_reset(&s_test, true, uni_hid_device_is_keyboard(device));
+    s_test.iine = device->ble_iine;
+    s_test.firmware = uni_bt_le_iine_firmware(device);
+    taskEXIT_CRITICAL(&s_lock);
     set_sample((pad_sample_t){.connected = true});
     update_scan_policy();
     ESP_LOGI(TAG, "controller ready");
@@ -253,6 +289,17 @@ static void controller_data(uni_hid_device_t *device, uni_controller_t *ctl) {
     }
     if (ctl->klass != UNI_CONTROLLER_CLASS_GAMEPAD) return;
     const uni_gamepad_t *gp = &ctl->gamepad;
+    uint16_t buttons = gp->buttons |
+        ((gp->misc_buttons & MISC_BUTTON_SELECT) ? 1u << 10 : 0) |
+        ((gp->misc_buttons & MISC_BUTTON_START) ? 1u << 11 : 0) |
+        ((gp->misc_buttons & MISC_BUTTON_SYSTEM) ? 1u << 12 : 0) |
+        ((gp->misc_buttons & MISC_BUTTON_CAPTURE) ? 1u << 13 : 0);
+    const int32_t axes[] = {gp->axis_x, gp->axis_y, gp->axis_rx, gp->axis_ry};
+    const int32_t triggers[] = {gp->brake, gp->throttle};
+    taskENTER_CRITICAL(&s_lock);
+    gamepad_test_update(&s_test, buttons, gp->dpad, axes, triggers,
+                        (uint32_t)(esp_timer_get_time() / 1000));
+    taskEXIT_CRITICAL(&s_lock);
     pad_sample_t next = {
         .connected = true,
         .right = (gp->dpad & DPAD_RIGHT) != 0,
