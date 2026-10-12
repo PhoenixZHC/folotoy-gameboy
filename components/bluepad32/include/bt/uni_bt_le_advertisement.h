@@ -13,6 +13,7 @@ typedef struct {
     bool used;
     bool complete_name;
     bool hid_service;
+    bool iine_service;
     uint8_t address[6];
     uint8_t address_type;
     uint16_t appearance;
@@ -33,5 +34,7 @@ const uni_bt_le_adv_entry_t* uni_bt_le_adv_observe(uni_bt_le_adv_cache_t* cache,
 void uni_bt_le_adv_reset(uni_bt_le_adv_cache_t* cache);
 // 0x0500 is a provisional HID candidate, not an identified gamepad.
 uint16_t uni_bt_le_adv_cod(const uni_bt_le_adv_entry_t* entry);
+// A candidate only; the private backend also verifies the measured firmware identity.
+bool uni_bt_le_adv_is_iine(const uni_bt_le_adv_entry_t* entry);
 
 #endif

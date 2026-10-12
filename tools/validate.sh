@@ -82,6 +82,15 @@ run_static_checks() {
         tests/test_bt_le_recovery.c components/bluepad32/bt/uni_bt_le_hid.c \
         components/btstack/src/btstack_util.c -o "${test_dir}/test_bt_le_recovery"
     "${test_dir}/test_bt_le_recovery"
+    "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror -Icomponents/bluepad32/include \
+        tests/test_iine_protocol.c components/bluepad32/parser/uni_iine_protocol.c \
+        -o "${test_dir}/test_iine_protocol"
+    "${test_dir}/test_iine_protocol" tests/fixtures/l1241_fw2702_input.txt
+    "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror -DCONFIG_BLUEPAD32_MAX_DEVICES=1 \
+        -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
+        tests/test_bt_le_iine.c components/bluepad32/parser/uni_iine_protocol.c \
+        components/btstack/src/btstack_util.c -o "${test_dir}/test_bt_le_iine"
+    "${test_dir}/test_bt_le_iine"
     for target in ESP32C3 ESP32; do
         "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
             -DCONFIG_BLUEPAD32_MAX_DEVICES=1 "-DCONFIG_IDF_TARGET_${target}=1" \

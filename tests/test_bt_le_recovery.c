@@ -7,6 +7,9 @@ static uni_hid_device_t peer;
 static unsigned disconnects, scans, deletions, pairings, key_deletes, queries, cancels;
 static uint8_t connect_status;
 static bool invalid_link;
+static unsigned iine_starts, iine_resets;
+void uni_bt_le_iine_start(uni_hid_device_t* d) { assert(d == &peer); iine_starts++; }
+void uni_bt_le_iine_reset(uni_hid_device_t* d) { assert(d == &peer); iine_resets++; }
 uni_hid_device_t* uni_hid_device_get_instance_for_address(bd_addr_t addr) { (void)addr; return &peer; }
 uni_hid_device_t* uni_hid_device_get_instance_for_connection_handle(hci_con_handle_t handle) {
     return handle == peer.conn.handle ? &peer : NULL;
@@ -94,5 +97,13 @@ int main(void) {
     invalid_link = true;
     hog_disconnect(UNI_BT_CONN_HANDLE_INVALID);
     assert(cancels == 1);
+    invalid_link = false;
+    peer.ble_iine = true;
+    security(SM_EVENT_PAIRING_COMPLETE, ERROR_CODE_SUCCESS);
+    assert(iine_starts == 1 && queries == 1); // Private backend never enters HIDS.
+    security(SM_EVENT_REENCRYPTION_COMPLETE, ERROR_CODE_SUCCESS);
+    assert(iine_starts == 2 && queries == 1);
+    hog_disconnect(peer.conn.handle);
+    assert(iine_resets == 1 && disconnects == 4);
     return 0;
 }

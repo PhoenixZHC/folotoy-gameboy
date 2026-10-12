@@ -171,7 +171,42 @@ static void test_hid_service_fallback(void) {
     assert(uni_bt_le_adv_cod(entry) == 0x0500);
 }
 
+static void test_iine_candidate(void) {
+    const uint8_t address[6] = {1,2,3,4,5,6};
+    const uint8_t name[] = {13, 0x09, 'I','I','N','E',' ','G','A','M','E','P','A','D'};
+    const uint8_t uuid[] = {17, 0x07, 0xb5,0xda,0x8b,0x14,0xc4,0x19,0xc3,0x96,
+                            0xe9,0x46,0x0d,0x66,0xe0,0x10,0xf0,0xd7};
+    const uint8_t hid[] = {3, 0x03, 0x12, 0x18};
+    uni_bt_le_adv_cache_t cache = {0};
+    gamepad_discovery_t discovery = {0};
+    const uni_bt_le_adv_entry_t* e = uni_bt_le_adv_observe(&cache, address, 0, name, sizeof(name), 0);
+    assert(uni_bt_le_adv_is_iine(e) && uni_bt_le_adv_cod(e) == 0x0508);
+    assert(gamepad_discovery_observe(&discovery, address, uni_bt_le_adv_cod(e), e->name));
+    assert(!gamepad_discovery_should_connect(&discovery, address));
+    assert(gamepad_discovery_select(&discovery, 0));
+    assert(gamepad_discovery_should_connect(&discovery, address));
+    e = uni_bt_le_adv_observe(&cache, address, 0, hid, sizeof(hid), 1);
+    assert(!uni_bt_le_adv_is_iine(e)); // A real HID service keeps the existing HID path.
+    uni_bt_le_adv_reset(&cache);
+    e = uni_bt_le_adv_observe(&cache, address, 0, uuid, sizeof(uuid), 2);
+    assert(e->iine_service && uni_bt_le_adv_is_iine(e));
+    uint8_t short_name[sizeof(name)];
+    memcpy(short_name, name, sizeof(name));
+    short_name[1] = 0x08;
+    e = uni_bt_le_adv_observe(&cache, address, 1, short_name, sizeof(short_name), 3);
+    assert(!uni_bt_le_adv_is_iine(e)); // No partial-name or cross-address-type match.
+    e = uni_bt_le_adv_observe(&cache, address, 0, NULL, 0, 2 + UNI_BT_LE_ADV_TTL_MS);
+    assert(!uni_bt_le_adv_is_iine(e));
+    uni_bt_le_adv_entry_t other = {.complete_name=true, .appearance=0x03c1};
+    strcpy(other.name, "IINE GAMEPAD");
+    assert(!uni_bt_le_adv_is_iine(&other) && uni_bt_le_adv_cod(&other) == 0x0540);
+    other.appearance = 0;
+    strcpy(other.name, "IINE GAMEPAD PRO");
+    assert(!uni_bt_le_adv_is_iine(&other));
+}
+
 int main(void) {
+    test_iine_candidate();
     test_split_reports(0x03c4, 0x0508); // Gamepad.
     test_split_reports(0x03c3, 0x0504); // Joystick uses the same discovery/selection flow.
     test_isolation_and_expiry();

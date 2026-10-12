@@ -17,6 +17,9 @@ def main():
     includes = ['-Itests/stubs', '-Imain', '-Icomponents/gb_core/include',
                 '-Icomponents/gb_core/gb', '-Icomponents/minigb_apu']
     cases = [
+        ('iine_protocol', ['components/bluepad32/parser/uni_iine_protocol.c']),
+        ('bt_le_iine', ['components/bluepad32/parser/uni_iine_protocol.c',
+                        'components/btstack/src/btstack_util.c']),
         ('gamepad_discovery', ['main/gamepad_discovery.c']),
         ('bt_le_advertisement', ['components/bluepad32/bt/uni_bt_le_advertisement.c',
                                  'main/gamepad_discovery.c']),
@@ -73,18 +76,19 @@ def main():
                    '-O2', '-Wall', '-Wextra', '-Werror'] + includes
         if cpp:
             command += ['-Wno-unused-parameter']
-        if name in ('bt_le_advertisement', 'bt_le_hid'):
+        if name in ('bt_le_advertisement', 'bt_le_hid', 'iine_protocol'):
             command += ['-Icomponents/bluepad32/include']
-        if name in ('gb_keyboard_hid', 'gb_gamepad_hid', 'bt_le_recovery'):
+        if name in ('gb_keyboard_hid', 'gb_gamepad_hid', 'bt_le_recovery', 'bt_le_iine'):
             command += ['-Itests/keyboard_stubs', '-Icomponents/bluepad32/include',
                         '-Icomponents/btstack/src']
-        if name == 'bt_le_recovery':
+        if name in ('bt_le_recovery', 'bt_le_iine'):
             command += ['-DCONFIG_BLUEPAD32_MAX_DEVICES=1']
         if name == 'gb_audio':
             command += ['-DMINIGB_APU_AUDIO_FORMAT_S16SYS=1', '-DAUDIO_SAMPLE_RATE=16000']
         command += [f'tests/test_{name}.{"cpp" if cpp else "c"}', *sources,
                     '-o', str(executable)]
-        run(name, [(command, ROOT), ([str(executable)], work)])
+        arguments = [str(ROOT / 'tests/fixtures/l1241_fw2702_input.txt')] if name == 'iine_protocol' else []
+        run(name, [(command, ROOT), ([str(executable), *arguments], work)])
     for target in ['ESP32C3', 'ESP32']:
         executable = work / ('bt_setup_' + target + ('.exe' if os.name == 'nt' else ''))
         command = [cc, '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',

@@ -69,6 +69,7 @@
 #include "bt/uni_bt_defines.h"
 #include "bt/uni_bt_le_advertisement.h"
 #include "bt/uni_bt_le_hid.h"
+#include "bt/uni_bt_le_iine.h"
 #include "parser/uni_hid_parser.h"
 #include "uni_common.h"
 #include "uni_config.h"
@@ -119,7 +120,9 @@ static void hog_disconnect(hci_con_handle_t con_handle) {
     uni_hid_device_t* device;
 
     device = uni_hid_device_get_instance_for_connection_handle(con_handle);
-    if (device) {
+    if (device && device->ble_iine) {
+        uni_bt_le_iine_reset(device);
+    } else if (device) {
         status = hids_client_disconnect(device->hids_cid);
         if (status != ERROR_CODE_SUCCESS) {
             loge("Failed to disconnect HIDS client for hids_cid=%d, status=%d\n", device->hids_cid, status);
@@ -634,6 +637,11 @@ static void uni_sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t
             loge("Error: Invalid conn_handle: %d\n", con_handle);
             return;
         }
+        device = uni_hid_device_get_instance_for_connection_handle(con_handle);
+        if (device && device->ble_iine) {
+            uni_bt_le_iine_start(device);
+            return;
+        }
         logi("Requesting device information\n");
         status = device_information_service_client_query(con_handle, uni_device_information_packet_handler);
         if (status != ERROR_CODE_SUCCESS) {
@@ -783,6 +791,7 @@ void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t s
     uni_bt_conn_set_state(&d->conn, UNI_BT_CONN_STATE_DEVICE_DISCOVERED);
     d->conn.rssi = rssi;
     d->ble_hid_service_filter = hid_probe;
+    d->ble_iine = uni_bt_le_adv_is_iine(advertisement);
     d->ble_hid_service_index = UINT8_MAX;
 
     hog_connect(addr, addr_type);
