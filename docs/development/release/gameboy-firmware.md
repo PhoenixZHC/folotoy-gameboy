@@ -2,6 +2,13 @@
 
 # Game Boy firmware image and GitHub handoff
 
+
+## Current 1.9 fourteen-game image (2026-10-14)
+
+`artifacts/releases/FoloToy-GameBoy-1.9-14games-full.bin` is the locally archived, approved image installed on COM14 at `0x0`: 8,388,608 bytes, SHA-256 `7619395c66001712431000fa45cf9738b3b37805db4bf82c78a213370a76d47c`. All fourteen ROM names and SHA-256 values match the historical 1.8 manifest. Application: `build/xiaomi-validation/FoloToy-AI-Passport.bin`, 2,532,848 bytes, SHA-256 `af0da2418cb4bdfc4142ee84b9927fe935c773b7544fafe24d1241a7e01fe7f1`; matching ELF SHA-256 `c954b0bd6b2e18c6c07e50191e6909498a618e4ec2cbfad4c6ad5a48708cc736`. The adjacent manifest/checksum retain this identity. Clean image: `artifacts/releases/FoloToy-GameBoy-1.9-8MB-clean.bin`, SHA-256 `b459d74dce98bd4bfa4c67ae62da5b33dcd26be7635f1825f66533c85c3fd6a7`.
+
+The full write replaced FC 1.5, games, saves, settings and bonds. Write hash, startup version and ELF matched; user-confirmed remote/menu behavior passed. Build and 40 host groups passed; native Windows checks were used rather than the complete Bash wrapper. Reconnect, endurance, all-game compatibility and power-loss saves remain unverified. Raw logs and ROM-bearing images remain local, outside Git and public Release assets. See [validation](../gameboy-validation.md) and [1.9 usage/update form](gameboy-1.9-form.md). Historical images below are preserved.
+
 ## 1.8 fourteen-game full-image flash (2026-10-12)
 
 At the user's request, `artifacts/releases/FoloToy-GameBoy-1.8-14games-full.bin` was written to COM14 at `0x0`, replacing the previous FC games, saves, settings, and pairing data. The image is 8,388,608 bytes and includes the original fourteen GB games; all source ROM SHA-256 values match the 1.7 manifest. Full-image SHA-256: `b7aeab13ae5215b286d714c42a942b88ac3af01bacf45d13bc87165ef5b99b82`; application SHA-256: `cd567b0217eb9f01cdd7789b9c2283afe6cd6d3fe8bc0dccbcbc5d73ee79d519`. The adjacent manifest records application, ELF, and game identities.
@@ -43,7 +50,7 @@ The packaging tool checks the fixed partition layout, source images, a freshly r
 
 ## Optional preinstalled games
 
-The current classic image is `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`, using the production application in `build/release-1.7` (`GB_SIM_TEST=OFF`). The [1.5 selection and capacity](../gameboy-classics-1.5.md) remain applicable; the ROM partition is byte-identical. `FoloToy-GameBoy-1.7-app.bin` supports application-only updates at `0x10000` with the compatible layout. 1.7 application-only write/startup checks pass, and the user confirms substantially improved motion and sound. Old packages remain; commands below are a historical two-game example.
+The historical 1.7 classic image is `artifacts/releases/FoloToy-GameBoy-1.7-14games-full.bin`, using the production application in `build/release-1.7` (`GB_SIM_TEST=OFF`). The [1.5 selection and capacity](../gameboy-classics-1.5.md) remain applicable; the ROM partition is byte-identical. `FoloToy-GameBoy-1.7-app.bin` supports application-only updates at `0x10000` with the compatible layout. 1.7 application-only write/startup checks pass, and the user confirms substantially improved motion and sound. Old packages remain; commands below are a historical two-game example.
 
 Pass repeatable `--rom` arguments to include local games in the normal writable ROM partition. If a source filename is too long, give one `--rom-name` per ROM in the same order (at most 31 UTF-8 bytes each). Source files are read without renaming or modifying them. Without `--output`, this mode writes `artifacts/releases/FoloToy-GameBoy-8MB-preloaded.bin`; omitting `--rom` still produces the empty clean image used by CI.
 

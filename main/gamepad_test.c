@@ -13,7 +13,7 @@ void gamepad_test_reset(gamepad_test_state_t *s, bool connected, bool keyboard) 
 
 void gamepad_test_update(gamepad_test_state_t *s, uint16_t buttons, uint8_t dpad,
                          const int32_t axes[4], const int32_t triggers[2], uint32_t now) {
-    if (!s->connected || s->keyboard) return;
+    if (!s->connected) return;
     uint32_t previous = s->buttons | ((uint32_t)s->dpad << 14);
     uint32_t current = (buttons & 0x3fff) | ((uint32_t)(dpad & 15) << 14);
     uint32_t rising = current & ~previous;
@@ -101,8 +101,8 @@ void gamepad_test_render(const gamepad_test_state_t *s, uint32_t now, int batter
         snprintf(line,sizeof(line),"%d%%",percent);
     } else snprintf(line,sizeof(line),"?");
     text(c,201,27,line,GB_LCD_DARK,true);
-    if (!s->connected || s->keyboard) {
-        text(c,20,104,s->keyboard?"当前连接为键盘":"手柄未连接",GB_LCD_DARK,false);
+    if (!s->connected) {
+        text(c,20,104,"手柄未连接",GB_LCD_DARK,false);
         text(c,20,140,"请返回主菜单配对",GB_LCD_DARK,false);
     } else {
         if (s->iine) snprintf(line,sizeof(line),"L1241 %02X.%02X %s",s->firmware>>8,s->firmware&255,

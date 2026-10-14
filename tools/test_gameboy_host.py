@@ -40,6 +40,12 @@ def main():
                              'components/bluepad32/controller/uni_gamepad.c',
                              'components/btstack/src/btstack_hid_parser.c',
                              'components/btstack/src/btstack_util.c']),
+        ('xiaomi_remote_hid', ['main/gb_input.c',
+                             'components/bluepad32/parser/uni_hid_parser.c',
+                             'components/bluepad32/parser/uni_hid_parser_keyboard.c',
+                             'components/bluepad32/controller/uni_gamepad.c',
+                             'components/btstack/src/btstack_hid_parser.c',
+                             'components/btstack/src/btstack_util.c']),
         ('gb_name', ['main/gb_name.c']),
         ('gb_pixels', ['main/gb_pixels.c']),
         ('gb_render', ['tests/stubs/sdfat_stub.cpp']),
@@ -79,7 +85,7 @@ def main():
             command += ['-Wno-unused-parameter']
         if name in ('bt_le_advertisement', 'bt_le_hid', 'iine_protocol'):
             command += ['-Icomponents/bluepad32/include']
-        if name in ('gb_keyboard_hid', 'gb_gamepad_hid', 'bt_le_recovery', 'bt_le_iine'):
+        if name in ('gb_keyboard_hid', 'xiaomi_remote_hid', 'gb_gamepad_hid', 'bt_le_recovery', 'bt_le_iine'):
             command += ['-Itests/keyboard_stubs', '-Icomponents/bluepad32/include',
                         '-Icomponents/btstack/src']
         if name in ('bt_le_recovery', 'bt_le_iine'):
@@ -97,7 +103,7 @@ def main():
                    '-Itests/keyboard_stubs', '-Icomponents/bluepad32/include', '-Icomponents/btstack/src',
                    'tests/test_bt_setup.c', '-o', str(executable)]
         run('bt_setup_' + target, [(command, ROOT), ([str(executable)], work)])
-    for name in ['ui_font', 'verify_firmware', 'package_gameboy_release', 'pack_roms', 'gameboy_layout', 'gb_web_delete', 'home_menu']:
+    for name in ['ui_font', 'verify_firmware', 'package_gameboy_release', 'pack_roms', 'gameboy_layout', 'gb_web_delete', 'home_menu', 'menu_navigation']:
         run(name, [([sys.executable, '-B', str(ROOT / f'tests/test_{name}.py')], ROOT)])
     summary = {'passed': sum(item['passed'] for item in results),
                'failed': sum(not item['passed'] for item in results),

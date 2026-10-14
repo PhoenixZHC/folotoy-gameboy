@@ -2,6 +2,11 @@
 
 # Game Boy Port Sources
 
+
+## 1.9 FC-to-GB remote port (2026-10-14)
+
+The local FC project supplied the Xiaomi identity-limited horizontal mapping, measured RC001/FW2671 descriptor/report compatibility branch and menu-entry baseline pattern. The GB parser and advertisement regressions replay those formats; full test-page snapshots also accept mapped keyboard input. This is a local modification to vendored Bluepad32, not an upstream support claim. GB COM14 startup and user-confirmed remote/menu acceptance were recorded separately. See [controller support](controller-test.md) and [validation](gameboy-validation.md).
+
 ## 2026-10-12 controller update
 
 The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability. See [controller support](controller-test.md) for L1241, home navigation, input testing and Select holds. Historical FC results do not establish GameBoy acceptance.

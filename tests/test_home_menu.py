@@ -42,6 +42,7 @@ static int64_t esp_timer_get_time(void) {return (frame+1)*50000;}
 static void show_ui(const char *title,const char *hint,const char **items,size_t n,size_t selected,const char *footer) {
     (void)title;(void)hint;(void)items;(void)footer;assert(n==4 && selected<4);
     assert(strcmp(items[1], "游戏管理")==0 && strcmp(items[2], "手柄测试")==0);
+    assert(strcmp(items[0],gamepad_snapshot().connected?"游戏列表":"连接手柄")==0);
 }
 '''
 suffix=r'''

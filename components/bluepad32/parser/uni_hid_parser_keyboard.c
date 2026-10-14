@@ -29,6 +29,9 @@ typedef struct {
 typedef struct {
     int pressed_key_index;
     bool keyboard_page_seen;
+    bool using_xiaomi;
+    bool ignore_report;
+    bool xiaomi_boot_layout_logged;
 
     // TODO: JX_05 parser should be moved to its own parser... when the Keyboard parser becomes unmaintainable.
     bool using_jx_05;
@@ -36,6 +39,27 @@ typedef struct {
 } keyboard_instance_t;
 
 static keyboard_instance_t* get_keyboard_instance(uni_hid_device_t* d);
+
+bool uni_hid_parser_keyboard_is_xiaomi_remote(const uni_hid_device_t* d) {
+    return d && d->vendor_id == 0x2717 && d->product_id == 0x32b8;
+}
+
+// 小米遥控器横握：将原始 Keyboard/Keypad usage 转成应用现有的 WASD/J/K/I/L。
+// 只在已识别遥控器上执行，普通键盘和其他手柄不经过此映射。
+static uint16_t xiaomi_horizontal_key(uint16_t usage) {
+    switch (usage) {
+        case 0x4f: return 0x1a; // 右 -> W（上）
+        case 0x52: return 0x04; // 上 -> A（左）
+        case 0x50: return 0x16; // 左 -> S（下）
+        case 0x51: return 0x07; // 下 -> D（右）
+        case 0x35: case 0xc0: return 0x0d; // TV -> J（游戏 A）
+        case 0x65: case 0x5d: return 0x0e; // 三横线菜单 -> K（游戏 B）
+        case 0x4a: case 0x24: return 0x0f; // 主页 -> L（Start）
+        case 0xf1: return 0x0c; // 返回 -> I（Select）；不能先按标准键盘过滤它。
+        case 1: case 2: case 3: return usage; // 错误报告交由输入层松开全部游戏键。
+        default: return 0; // 确认、电源、语音、音量没有分配游戏动作。
+    }
+}
 
 static void jx_05_parse_usage(uni_hid_device_t* d,
                               const hid_globals_t* globals,
@@ -133,16 +157,47 @@ void uni_hid_parser_keyboard_setup(uni_hid_device_t* d) {
     keyboard_instance_t* ins = get_keyboard_instance(d);
     memset(ins, 0, sizeof(*ins));
     ins->using_jx_05 = (d->vendor_id == JX_05_VID && d->product_id == JX_05_PID);
+    ins->using_xiaomi = uni_hid_parser_keyboard_is_xiaomi_remote(d);
     if (ins->using_jx_05) {
         ins->jx_05.ready_to_process = true;
     }
 }
 
 void uni_hid_parser_keyboard_parse_input_report(struct uni_hid_device_s* d, const uint8_t* report, uint16_t len) {
-    ARG_UNUSED(d);
-    ARG_UNUSED(report);
-    ARG_UNUSED(len);
-    // printf_hexdump(report, len);
+    keyboard_instance_t* ins = get_keyboard_instance(d);
+    if (!ins->using_xiaomi) return;
+    // 依照设备实际 Report Map 校验长度，避免截断报告保留半个组合键。
+    bool has_id = btstack_hid_report_id_declared(d->hid_descriptor, d->hid_descriptor_len);
+    uint16_t id = has_id && report && len ? report[0] : HID_REPORT_ID_UNDEFINED;
+    int expected = btstack_hid_get_report_size_for_id(id, HID_REPORT_TYPE_INPUT,
+                                                     d->hid_descriptor, d->hid_descriptor_len);
+    // RC001 FW2671 实测：Report Map 声明三个 16-bit usage，通知却是
+    // modifiers/reserved/六个 8-bit usage。BTstack 加入 ID 后总长为 9。
+    // 仅在小米身份 + 报告 1 + 此长度/保留字节特征下处理，不放宽通用校验。
+    if (report && has_id && id == 1 && expected == 6 && len == 9 && report[2] == 0) {
+        memset(&d->controller.keyboard, 0, sizeof(d->controller.keyboard));
+        ins->ignore_report = true; // 已直接解码，禁止描述符解析器再次按 16-bit 解释。
+        if (!ins->xiaomi_boot_layout_logged) {
+            logi("MI RC: HID map says 6 bytes; decoding observed 8-byte keyboard payload\n");
+            ins->xiaomi_boot_layout_logged = true;
+        }
+        int index = 0;
+        for (unsigned i = 3; i < len; ++i) {
+            uint16_t key = xiaomi_horizontal_key(report[i]);
+            if (key >= 1 && key <= 3) {
+                memset(&d->controller.keyboard, 0, sizeof(d->controller.keyboard));
+                d->controller.keyboard.pressed_keys[0] = key;
+                return;
+            }
+            if (key) d->controller.keyboard.pressed_keys[index++] = key;
+        }
+        return;
+    }
+    if (!report || !expected || len != expected + (has_id ? 1 : 0)) {
+        memset(&d->controller.keyboard, 0, sizeof(d->controller.keyboard));
+        ins->ignore_report = true;
+        loge("MI RC: invalid HID input report id=%u len=%u expected=%d\n", id, len, expected);
+    }
 }
 
 void uni_hid_parser_keyboard_init_report(uni_hid_device_t* d) {
@@ -150,6 +205,7 @@ void uni_hid_parser_keyboard_init_report(uni_hid_device_t* d) {
     keyboard_instance_t* ins = get_keyboard_instance(d);
     ins->pressed_key_index = 0;
     ins->keyboard_page_seen = false;
+    ins->ignore_report = false;
 
     // Ordinary keyboards may use separate report IDs for media keys. Keep
     // their held keyboard keys until a Keyboard/Keypad report arrives.
@@ -164,6 +220,7 @@ void uni_hid_parser_keyboard_parse_usage(uni_hid_device_t* d,
                                          uint16_t usage,
                                          int32_t value) {
     keyboard_instance_t* ins = get_keyboard_instance(d);
+    if (ins->ignore_report) return;
     if (ins->using_jx_05) {
         jx_05_parse_usage(d, globals, usage_page, usage, value);
         // fall-though, don't return
@@ -178,7 +235,9 @@ void uni_hid_parser_keyboard_parse_usage(uni_hid_device_t* d,
                 memset(&d->controller.keyboard, 0, sizeof(d->controller.keyboard));
                 ins->keyboard_page_seen = true;
             }
+            if (ins->using_xiaomi) usage = xiaomi_horizontal_key(usage);
             if (value) {
+                if (ins->using_xiaomi && !usage) break;
                 if (usage < HID_USAGE_KB_LEFT_CONTROL) {
                     if (idx >= UNI_KEYBOARD_PRESSED_KEYS_MAX) {
                         loge("Keyboard: Reached max keyboard keys, skipping page: %d, usage: %d, value: %d\n",

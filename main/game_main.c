@@ -208,7 +208,7 @@ static void settings_loop(void) {
 }
 
 static size_t home_loop(void) {
-    const char *items[] = {"配对键盘或手柄", "游戏管理", "手柄测试", "设置"};
+    const char *items[] = {"连接手柄", "游戏管理", "手柄测试", "设置"};
     size_t selected = 0;
     bool dirty = true;
     int64_t refreshed = 0;
@@ -228,7 +228,8 @@ static size_t home_loop(void) {
         } else if (action == GB_MENU_CONFIRM) return selected;
         int64_t now = esp_timer_get_time();
         if (dirty || now - refreshed > 15000000) {
-            show_ui("GB模拟器", gamepad_snapshot().connected ? "输入设备已连接" : "请选择操作",
+            items[0] = sample.connected ? "游戏列表" : "连接手柄";
+            show_ui("GB模拟器", sample.connected ? "输入设备已连接" : "请选择操作",
                     items, 4, selected, "上/下选择 A/OK确认");
             refreshed = now;
             dirty = false;
@@ -786,10 +787,14 @@ static void run_game(size_t index) {
 }
 
 static void menu_loop(void) {
+    xQueueReset(s_buttons);
+    pad_sample_t entry = gamepad_snapshot();
     gb_select_pause_t select_back;
-    gb_select_pause_init(&select_back, gamepad_snapshot());
+    gb_select_pause_init(&select_back, entry);
+    gb_menu_input_t pad_input;
+    gb_menu_input_init(&pad_input, entry);
     size_t selected = 0;
-    bool dirty = true, prev_up = false, prev_down = false, prev_a = false;
+    bool dirty = true;
     while (true) {
         size_t count = gb_storage_count();
         if (!count) {
@@ -797,24 +802,32 @@ static void menu_loop(void) {
             show_ui("游戏列表", "请到游戏管理上传", items, 1, 0, "长按OK/Select 返回");
             button_message_t msg;
             while (true) {
+                if (!gamepad_snapshot().connected) return;
                 if (menu_button_receive(&select_back, &msg, pdMS_TO_TICKS(50)) == pdTRUE &&
                     msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) return;
             }
         }
+        button_message_t msg;
+        bool board_event = menu_button_receive(&select_back, &msg, 0) == pdTRUE;
         pad_sample_t pad = gamepad_snapshot();
         if (!pad.connected) return;
-        button_message_t msg;
-        while (menu_button_receive(&select_back, &msg, 0) == pdTRUE) {
-            if (msg.button == BSP_BTN_OK && msg.event == BSP_BTN_LONG) return;
-            if (msg.event != BSP_BTN_CLICK) continue;
-            if (msg.button == BSP_BTN_UP) { selected = (selected + count - 1) % count; dirty = true; }
-            if (msg.button == BSP_BTN_DOWN) { selected = (selected + 1) % count; dirty = true; }
-            if (msg.button == BSP_BTN_OK) { run_game(selected); gb_select_pause_init(&select_back, gamepad_snapshot()); dirty = true; }
+        gb_menu_action_t pad_action = gb_menu_input_step(&pad_input, pad);
+        gb_menu_action_t action = board_event ? board_menu_action(msg) : GB_MENU_NONE;
+        if (board_event && msg.event == BSP_BTN_LONG && msg.button == BSP_BTN_OK)
+            action = GB_MENU_BACK;
+        if (action == GB_MENU_NONE && pad_action != GB_MENU_BACK) action = pad_action;
+        if (action == GB_MENU_BACK) return;
+        if (action == GB_MENU_UP || action == GB_MENU_DOWN) {
+            selected = (selected + (action == GB_MENU_UP ? count - 1 : 1)) % count;
+            dirty = true;
+        } else if (action == GB_MENU_CONFIRM) {
+            run_game(selected);
+            xQueueReset(s_buttons);
+            pad_sample_t resumed = gamepad_snapshot();
+            gb_select_pause_init(&select_back, resumed);
+            gb_menu_input_init(&pad_input, resumed);
+            dirty = true;
         }
-        if (pad.up && !prev_up) { selected = (selected + count - 1) % count; dirty = true; }
-        if (pad.down && !prev_down) { selected = (selected + 1) % count; dirty = true; }
-        if (pad.a && !prev_a) { run_game(selected); gb_select_pause_init(&select_back, gamepad_snapshot()); dirty = true; }
-        prev_up = pad.up; prev_down = pad.down; prev_a = pad.a;
         if (dirty) {
             const char *items[GB_UI_MAX_ITEMS] = {0};
             char names[GB_UI_MAX_ITEMS][38] = {{0}};
@@ -871,6 +884,10 @@ static bool boot_animation(void) {
     return e == ESP_OK;
 }
 
+static void input_entry_loop(void) {
+    if (gamepad_snapshot().connected || pairing_loop()) menu_loop();
+}
+
 void app_main(void) {
     esp_err_t e = nvs_flash_init();
     if (e != ESP_OK) { ESP_LOGE(TAG, "NVS: %s", esp_err_to_name(e)); return; }
@@ -893,7 +910,7 @@ void app_main(void) {
              !gb_saves_prune_orphans()) ESP_LOGE(TAG, "orphan save cleanup failed");
     while (true) {
         size_t choice = home_loop();
-        if (choice == 0 && pairing_loop()) menu_loop();
+        if (choice == 0) input_entry_loop();
         else if (choice == 1) management_loop();
         else if (choice == 2) gamepad_test_loop();
         else if (choice == 3) settings_loop();

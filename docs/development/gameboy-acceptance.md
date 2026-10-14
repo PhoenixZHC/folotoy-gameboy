@@ -2,6 +2,15 @@
 
 # Game Boy baseline acceptance
 
+
+## Version 1.9 remote and menu acceptance (2026-10-14)
+
+Version 1.9 ports FC's Xiaomi remote horizontal mapping, RC001/FW2671 report-length compatibility, full shared input-test layout and menu-entry held-key guards. The dedicated mapping requires keyboard HID VID/PID `2717:32B8`; candidate names do not establish compatibility. See [controls](controller-test.md) and [1.9 usage/update form](release/gameboy-1.9-form.md).
+
+Build: PASS (ESP-IDF 5.5.3). Host tests: PASS (40 groups, 0 failures; extended menu cases rerun, unchanged results reused). Repository checks, actionlint 1.7.12, app/layout and clean/preloaded image verification: PASS. The complete Bash entry point was NOT RUN; Windows native equivalents were used. Device tests: PASS for the explicitly exercised scope: approved COM14 full-image write/hash, version 1.9/matching ELF, RC001/FW2671 recognition and compatibility decoding, and user-confirmed pairing, eight keys/releases, test-page display, long Back pause and no held-confirm auto-launch on list entry/game return. A 45-second log window showed Kirby loading and no panic/abort/watchdog/invalid-HID-report markers. The monitor closed; final enumeration no longer showed COM14.
+
+Unverified: repeated reconnects, extended play, all-game/controller compatibility, power-loss saves and a new keyboard regression. The RC001/FW2671 single-key limitation established in FC remains; constructed combinations do not prove simultaneous physical keys. No new performance measurement was made. Earlier sections retain their historical dates; the latest artifact identity is in the [firmware handoff](release/gameboy-firmware.md).
+
 ## Global Select return (2026-10-12)
 
 Every existing long-OK back/exit action also accepts a one-second Select hold: Settings (finish editing first), Controller test, Game management, game/empty lists, and Pause (exit after a successful save). Pairing cancel/retry uses the same event, but board buttons remain necessary when no controller input is available before connection/confirmation. Entry and return from child pages require release before another hold, preventing cascading exits. In Controller test, a short Select press is displayed; a one-second hold returns. The GameBoy 1.8 fourteen-game full image was flashed to COM14 on 2026-10-12; the user subsequently reported no issues during testing. Acceptance is limited to the exercised behavior, not all games, controllers or long-term stability.

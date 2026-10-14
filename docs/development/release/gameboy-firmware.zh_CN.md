@@ -2,6 +2,13 @@
 
 # Game Boy 固件镜像与 GitHub 提交
 
+
+## 当前 1.9 十四游戏镜像（2026-10-14）
+
+`artifacts/releases/FoloToy-GameBoy-1.9-14games-full.bin` 为本地归档并获准从 `0x0` 安装到 COM14 的镜像：8,388,608 字节，SHA-256 `7619395c66001712431000fa45cf9738b3b37805db4bf82c78a213370a76d47c`。十四款 ROM 名称和 SHA-256 与历史 1.8 清单一致。应用：`build/xiaomi-validation/FoloToy-AI-Passport.bin`，2,532,848 字节，SHA-256 `af0da2418cb4bdfc4142ee84b9927fe935c773b7544fafe24d1241a7e01fe7f1`；匹配 ELF SHA-256 `c954b0bd6b2e18c6c07e50191e6909498a618e4ec2cbfad4c6ad5a48708cc736`。相邻 manifest／校验文件保留身份。清洁镜像：`artifacts/releases/FoloToy-GameBoy-1.9-8MB-clean.bin`，SHA-256 `b459d74dce98bd4bfa4c67ae62da5b33dcd26be7635f1825f66533c85c3fd6a7`。
+
+完整写入已覆盖原 FC 1.5、游戏、存档、设置和配对。写入哈希、启动版本及 ELF 匹配，用户遥控器／菜单专项验收通过。构建及 40 组主机检查通过；使用 Windows 原生检查，未运行完整 Bash 入口。重连、耐久、全部游戏兼容和断电存档仍待验证。原始日志和含 ROM 镜像只在本地保留，不进入 Git 或公开 Release 附件。见[验证记录](../gameboy-validation.zh_CN.md)及[1.9 使用方法／更新表单](gameboy-1.9-form.zh_CN.md)。下方历史镜像保留。
+
 ## 1.8 十四游戏完整包烧录（2026-10-12）
 
 已按用户要求将 `artifacts/releases/FoloToy-GameBoy-1.8-14games-full.bin` 从 `0x0` 写入 COM14，覆盖原 FC 游戏、存档、设置及配对信息。镜像为 8,388,608 字节，包含原选集十四款 GB 游戏，各 ROM SHA-256 与 1.7 清单一致。完整包 SHA-256：`b7aeab13ae5215b286d714c42a942b88ac3af01bacf45d13bc87165ef5b99b82`；应用 SHA-256：`cd567b0217eb9f01cdd7789b9c2283afe6cd6d3fe8bc0dccbcbc5d73ee79d519`。同目录 manifest 保存应用、ELF 和游戏身份。

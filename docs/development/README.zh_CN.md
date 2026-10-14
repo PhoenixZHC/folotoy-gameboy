@@ -17,9 +17,13 @@
 
 ## Game Boy 固件
 
-- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.7 验收范围与历史实机结果。
+- [gameboy-acceptance.zh_CN.md](gameboy-acceptance.zh_CN.md)：当前 1.9 验收范围与历史实机结果。
 - [gameboy-validation.zh_CN.md](gameboy-validation.zh_CN.md)：构建、主机测试、设备测试及固件包证据。
 - [gameboy-sources.zh_CN.md](gameboy-sources.zh_CN.md)：第三方来源、许可证及本地适配。
+
+- [controller-test.zh_CN.md](controller-test.zh_CN.md)：手柄／键盘／遥控器操作和输入测试。
+- [release/gameboy-1.9-form.zh_CN.md](release/gameboy-1.9-form.zh_CN.md)：当前使用方法及本次更新日志。
+- [release/gameboy-firmware.zh_CN.md](release/gameboy-firmware.zh_CN.md)：安装、产物身份与数据影响。
 
 ## AI 工作流
 

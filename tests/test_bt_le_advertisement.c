@@ -105,6 +105,33 @@ static void test_packet_bounds(void) {
     assert(entry->appearance == 0);
 }
 
+static void test_xiaomi_remote_candidate(void) {
+    uni_bt_le_adv_cache_t cache = {0};
+    gamepad_discovery_t discovery = {0};
+    const uint8_t remote[] = {3,0x19,0x80,1};
+    const uint8_t mi_name[] = {6,0x09,'M','I',' ','R','C'};
+    const uni_bt_le_adv_entry_t *entry = uni_bt_le_adv_observe(&cache,address,0,remote,sizeof(remote),0);
+    assert(!uni_bt_le_adv_cod(entry));
+    entry = uni_bt_le_adv_observe(&cache,address,0,mi_name,sizeof(mi_name),1);
+    assert(uni_bt_le_adv_cod(entry) == 0x0500 && !entry->hid_service);
+    assert(gamepad_discovery_observe(&discovery,address,0x0500,entry->name));
+    assert(discovery.candidates[0].type_pending && !gamepad_discovery_should_connect(&discovery,address));
+    assert(gamepad_discovery_select(&discovery,0));
+    assert(gamepad_discovery_should_connect(&discovery,address));
+    uni_bt_le_adv_entry_t different = {.appearance=0x0180,.complete_name=true};
+    strcpy(different.name,"MI RC other");
+    assert(!uni_bt_le_adv_cod(&different)); // 不按名称子串开放其他遥控器。
+    strcpy(different.name,"Xiaomi RC");
+    assert(uni_bt_le_adv_cod(&different)==0x0500);
+    different.appearance=0x03c2;
+    assert(uni_bt_le_adv_cod(&different)==0x0580); // 不覆盖明确的鼠标类型。
+    different.appearance=0;
+    different.complete_name=false;
+    assert(!uni_bt_le_adv_cod(&different));
+    different.complete_name=true;
+    assert(uni_bt_le_adv_cod(&different)==0x0500);
+}
+
 static void test_hid_service_fallback(void) {
     const uint8_t hid[] = {5, 0x03, 0x0f, 0x18, 0x12, 0x18};
     const uint8_t partial_hid[] = {3, 0x02, 0x12, 0x18};
@@ -211,6 +238,7 @@ int main(void) {
     test_split_reports(0x03c3, 0x0504); // Joystick uses the same discovery/selection flow.
     test_isolation_and_expiry();
     test_packet_bounds();
+    test_xiaomi_remote_candidate();
     test_hid_service_fallback();
     return 0;
 }

@@ -14,13 +14,17 @@ bool uni_bt_le_adv_is_iine(const uni_bt_le_adv_entry_t* entry) {
 uint16_t uni_bt_le_adv_cod(const uni_bt_le_adv_entry_t* entry) {
     if (!entry) return 0;
     if (uni_bt_le_adv_is_iine(entry)) return 0x0508;
+    // 名称只用于展示待探测候选；连接后仍检查 HID Report Map 和 VID/PID。
+    bool xiaomi_candidate = entry->complete_name &&
+        (!strcmp(entry->name, "MI RC") || !strcmp(entry->name, "Xiaomi RC"));
     switch (entry->appearance) {
         case 0x03c1: return 0x0540; // Keyboard.
         case 0x03c2: return 0x0580; // Mouse; the platform may reject it.
         case 0x03c3: return 0x0504; // Joystick.
         case 0x03c4: return 0x0508; // Gamepad.
         case 0:
-        case 0x03c0: return entry->hid_service ? 0x0500 : 0;
+        case 0x03c0: return entry->hid_service || xiaomi_candidate ? 0x0500 : 0;
+        case 0x0180: return xiaomi_candidate ? 0x0500 : 0; // Generic Remote Control.
         default: return 0;
     }
 }

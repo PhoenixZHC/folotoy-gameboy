@@ -12,6 +12,7 @@
 #include "uni.h"
 #include "bt/uni_bt.h"
 #include "bt/uni_bt_le_iine.h"
+#include "parser/uni_hid_parser_keyboard.h"
 
 static const char *TAG = "gamepad";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -277,14 +278,27 @@ static uni_error_t device_ready(uni_hid_device_t *device) {
     set_sample((pad_sample_t){.connected = true});
     update_scan_policy();
     ESP_LOGI(TAG, "controller ready");
+    if (uni_hid_device_is_keyboard(device) && uni_hid_parser_keyboard_is_xiaomi_remote(device))
+        ESP_LOGI(TAG, "MI RC horizontal mapping ready VID=%04x PID=%04x; GB device acceptance pending",
+                 device->vendor_id, device->product_id);
     return UNI_ERROR_SUCCESS;
 }
 
 static void controller_data(uni_hid_device_t *device, uni_controller_t *ctl) {
     if (device != s_owner) return;
     if (ctl->klass == UNI_CONTROLLER_CLASS_KEYBOARD) {
-        set_sample(gb_input_keyboard(ctl->keyboard.pressed_keys,
-                                    UNI_KEYBOARD_PRESSED_KEYS_MAX, ctl->keyboard.modifiers));
+        pad_sample_t next = gb_input_keyboard(ctl->keyboard.pressed_keys,
+                                             UNI_KEYBOARD_PRESSED_KEYS_MAX, ctl->keyboard.modifiers);
+        uint16_t buttons = (next.a ? BUTTON_A : 0) | (next.b ? BUTTON_B : 0) |
+                           (next.view ? 1u << 10 : 0) | (next.menu ? 1u << 11 : 0);
+        uint8_t dpad = (next.up ? DPAD_UP : 0) | (next.down ? DPAD_DOWN : 0) |
+                       (next.right ? DPAD_RIGHT : 0) | (next.left ? DPAD_LEFT : 0);
+        const int32_t zero[4] = {0};
+        taskENTER_CRITICAL(&s_lock);
+        gamepad_test_update(&s_test, buttons, dpad, zero, zero,
+                            (uint32_t)(esp_timer_get_time() / 1000));
+        taskEXIT_CRITICAL(&s_lock);
+        set_sample(next);
         return;
     }
     if (ctl->klass != UNI_CONTROLLER_CLASS_GAMEPAD) return;

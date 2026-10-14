@@ -72,6 +72,15 @@ run_static_checks() {
         components/btstack/src/btstack_hid_parser.c components/btstack/src/btstack_util.c \
         -o "${test_dir}/test_gb_keyboard_hid"
     "${test_dir}/test_gb_keyboard_hid"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
+        tests/test_xiaomi_remote_hid.c main/gb_input.c \
+        components/bluepad32/parser/uni_hid_parser.c \
+        components/bluepad32/parser/uni_hid_parser_keyboard.c \
+        components/bluepad32/controller/uni_gamepad.c \
+        components/btstack/src/btstack_hid_parser.c components/btstack/src/btstack_util.c \
+        -o "${test_dir}/test_xiaomi_remote_hid"
+    "${test_dir}/test_xiaomi_remote_hid"
     "${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
         -Itests/keyboard_stubs -Icomponents/bluepad32/include -Icomponents/btstack/src \
         tests/test_gb_gamepad_hid.c components/bluepad32/parser/uni_hid_parser.c \
@@ -155,6 +164,7 @@ run_static_checks() {
     (cd "${test_dir}" && ./test_gb_boot)
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_gb_web_delete.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_home_menu.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_menu_navigation.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ui_font.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py

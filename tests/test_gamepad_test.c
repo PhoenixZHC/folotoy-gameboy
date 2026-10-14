@@ -6,6 +6,7 @@
 
 static uint16_t pixels[240*320];
 static unsigned texts;
+static bool remote_label, remote_help, shoulder_label;
 static void fill(void *context, int x,int y,int w,int h,uint16_t color) {
     (void)context;
     assert(x>=0 && y>=0 && w>=0 && h>=0 && x+w<=240 && y+h<=320);
@@ -19,6 +20,9 @@ static void text(void *context,int x,int y,const char *label,uint16_t color,bool
     assert(strcmp(label,"L3") && strcmp(label,"R3"));
     if (!strcmp(label,"Select") || !strcmp(label,"Start")) assert(y>=273);
     ++texts;
+    remote_label |= !strcmp(label,"MI RC / HORIZONTAL");
+    remote_help |= !strcmp(label,"TV = A / MENU = B");
+    shoulder_label |= !strcmp(label,"L") || !strcmp(label,"R") || !strcmp(label,"ZL") || !strcmp(label,"ZR");
 }
 int main(void) {
     gamepad_test_state_t state;
@@ -75,7 +79,19 @@ int main(void) {
     gamepad_test_render(&state,50,-1,&canvas);
     gamepad_test_reset(&state,true,true);
     gamepad_test_update(&state,1,1,axes,triggers,60);
-    assert(!state.reports); // Keyboard cannot masquerade as a gamepad test.
+    assert(state.reports==1 && state.buttons==1 && state.dpad==1); // 键盘复用同一布局。
     gamepad_test_render(&state,60,50,&canvas);
+    gamepad_test_reset(&state,true,false);
+    gamepad_test_update(&state,3 | (1u<<10) | (1u<<11),1,zero,zero,70);
+    remote_label=remote_help=shoulder_label=false;
+    gamepad_test_render(&state,70,50,&canvas);
+    assert(!remote_label && !remote_help && shoulder_label); // 所有设备固定显示原布局。
+    assert(pixels[228*240+199]==GB_LCD_DARK && pixels[250*240+175]==GB_LCD_DARK);
+    assert(pixels[274*240+13]==GB_LCD_DARK && pixels[274*240+125]==GB_LCD_DARK);
+    gamepad_test_update(&state,0,0,zero,zero,71);
+    gamepad_test_render(&state,71,50,&canvas);
+    assert(pixels[228*240+199]==GB_LCD_MID && pixels[250*240+175]==GB_LCD_MID);
+    gamepad_test_reset(&state,false,false);
+    assert(!state.buttons && !state.reports);
     return 0;
 }

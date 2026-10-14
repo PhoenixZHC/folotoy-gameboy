@@ -19,6 +19,9 @@ GameBoy 1.8 十四游戏完整包已于 2026-10-12 烧录到 COM14，用户随�
 - AI 开发约定见 [`AGENTS.zh_CN.md`](../AGENTS.zh_CN.md) 与 [`docs/development/ai-guide.zh_CN.md`](development/ai-guide.zh_CN.md)；完整硬件上下文和故障知识见 [`docs/hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.zh_CN.md`](hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.zh_CN.md)；
 - 构建结果与真机结果分开记录，禁止把"编译通过"描述成"硬件验证通过"。
 
+
+当前版本：**1.9**。小米 RC001/FW2671 遥控器与菜单已通过用户确认的专项操作；[使用方法／更新表单](development/release/gameboy-1.9-form.zh_CN.md)、[固件身份](development/release/gameboy-firmware.zh_CN.md)和[验证边界](development/gameboy-validation.zh_CN.md)记录当前状态。旧日期实测结果保留历史意义。
+
 ## 硬件能力契约
 
 下表描述的是上游硬件演示基线，不是当前检出目录中的 Game Boy 应用，也不是芯片数据手册中所有可能的能力。实际 Game Boy 行为和分区以根 README 及上方清洁镜像说明为准。

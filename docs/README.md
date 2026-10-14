@@ -19,6 +19,9 @@ The [BLE input fixes and cross-project handoff](development/ble-input-fc-handoff
 - Development conventions for AI assistants live in [`AGENTS.md`](../AGENTS.md) and [`docs/development/ai-guide.md`](development/ai-guide.md); the complete hardware context and troubleshooting knowledge is in [`docs/hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md`](hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md).
 - Build results and physical-device results are reported separately. A successful build must never be presented as successful hardware validation.
 
+
+Current version: **1.9**. Xiaomi RC001/FW2671 remote and menu behavior passed the user-confirmed checks; [usage/update form](development/release/gameboy-1.9-form.md), [firmware identity](development/release/gameboy-firmware.md) and [validation scope](development/gameboy-validation.md) describe the current state. Older dated device results remain historical.
+
 ## Hardware capability contract
 
 The table below describes the upstream hardware-demo baseline, not the Game Boy application in this checkout. It is not a list of everything that might be possible according to the chip datasheet. For actual Game Boy behavior and partitions, follow the root README and the clean-image guide linked above.
